@@ -6,7 +6,7 @@ const { streamChatCompletion } = require('./src/openrouter');
 
 const app = express();
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // --- Public API ---------------------------------------------------------

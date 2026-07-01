@@ -1,5 +1,9 @@
 (() => {
   const STORAGE_KEY = 'multiia_conversations_v1';
+  const MAX_TEXT_CHARS = 6000;
+  const MAX_FILE_BYTES = 6 * 1024 * 1024;
+  const TEXT_EXTENSIONS = ['.txt', '.md', '.csv', '.json'];
+
   const PROMPT_PRESETS = [
     { id: '', label: 'Selecionar um Prompt', system: '' },
     { id: 'assistant', label: 'Assistente geral', system: 'Voce e um assistente util, direto e honesto.' },
@@ -14,15 +18,22 @@
   const emptyState = document.getElementById('emptyState');
   const promptInput = document.getElementById('promptInput');
   const sendBtn = document.getElementById('sendBtn');
+  const attachBtn = document.getElementById('attachBtn');
+  const fileInput = document.getElementById('fileInput');
+  const attachmentsRow = document.getElementById('attachmentsRow');
   const statusBanner = document.getElementById('statusBanner');
   const conversationList = document.getElementById('conversationList');
   const newChatBtn = document.getElementById('newChatBtn');
   const sidebar = document.getElementById('sidebar');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
   const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
+  const navHistory = document.getElementById('navHistory');
+  const navPrompts = document.getElementById('navPrompts');
 
   let models = [];
   let conversations = loadConversations();
   let activeId = conversations.length ? conversations[0].id : createConversation();
+  let pendingAttachments = [];
 
   function loadConversations() {
     try {
@@ -57,6 +68,7 @@
         activeId = conv.id;
         renderSidebar();
         renderMessages();
+        closeSidebar();
       });
       item.querySelector('.del-btn').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -119,18 +131,148 @@
 
   promptSelect.innerHTML = PROMPT_PRESETS.map((p) => `<option value="${p.id}">${escapeHtml(p.label)}</option>`).join('');
 
+  // --- Sidebar drawer -------------------------------------------------
+
+  function openSidebar() {
+    sidebar.classList.add('sidebar-open');
+    sidebarBackdrop.classList.add('show');
+  }
+  function closeSidebar() {
+    sidebar.classList.remove('sidebar-open');
+    sidebarBackdrop.classList.remove('show');
+  }
+  function toggleSidebar() {
+    sidebar.classList.contains('sidebar-open') ? closeSidebar() : openSidebar();
+  }
+
+  toggleSidebarBtn.addEventListener('click', toggleSidebar);
+  navHistory.addEventListener('click', toggleSidebar);
+  sidebarBackdrop.addEventListener('click', closeSidebar);
+
+  navPrompts.addEventListener('click', () => {
+    if (typeof promptSelect.showPicker === 'function') {
+      try { promptSelect.showPicker(); return; } catch { /* fall through */ }
+    }
+    promptSelect.focus();
+  });
+
+  // --- Attachments ------------------------------------------------------
+
+  function fileExtension(name) {
+    const idx = name.lastIndexOf('.');
+    return idx === -1 ? '' : name.slice(idx).toLowerCase();
+  }
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+  }
+
+  async function handleFiles(fileList) {
+    for (const file of Array.from(fileList)) {
+      if (file.size > MAX_FILE_BYTES) {
+        showBanner('warn', `"${file.name}" e muito grande (limite 6MB).`);
+        continue;
+      }
+      const ext = fileExtension(file.name);
+      if (file.type.startsWith('image/')) {
+        const dataUrl = await readFileAsDataUrl(file);
+        pendingAttachments.push({ type: 'image', name: file.name, dataUrl });
+      } else if (TEXT_EXTENSIONS.includes(ext) || file.type.startsWith('text/')) {
+        let text = await readFileAsText(file);
+        let truncated = false;
+        if (text.length > MAX_TEXT_CHARS) {
+          text = text.slice(0, MAX_TEXT_CHARS);
+          truncated = true;
+        }
+        pendingAttachments.push({ type: 'text', name: file.name, content: text, truncated });
+      } else {
+        showBanner('warn', `Leitura de "${file.name}" ainda nao e suportada (apenas imagens e arquivos de texto por enquanto).`);
+      }
+    }
+    renderAttachments();
+  }
+
+  function renderAttachments() {
+    attachmentsRow.innerHTML = '';
+    pendingAttachments.forEach((att, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'attachment-chip';
+      const preview = att.type === 'image'
+        ? `<img src="${att.dataUrl}" alt="" />`
+        : `<span class="chip-icon">📄</span>`;
+      chip.innerHTML = `${preview}<span class="name">${escapeHtml(att.name)}</span><button title="Remover">✕</button>`;
+      chip.querySelector('button').addEventListener('click', () => {
+        pendingAttachments.splice(idx, 1);
+        renderAttachments();
+      });
+      attachmentsRow.appendChild(chip);
+    });
+  }
+
+  attachBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length) handleFiles(fileInput.files);
+    fileInput.value = '';
+  });
+
+  function buildApiContent(text) {
+    const textFiles = pendingAttachments.filter((a) => a.type === 'text');
+    const imageFiles = pendingAttachments.filter((a) => a.type === 'image');
+
+    let combinedText = text;
+    textFiles.forEach((f) => {
+      combinedText += `\n\n--- arquivo: ${f.name}${f.truncated ? ' (truncado)' : ''} ---\n${f.content}\n--- fim do arquivo ---`;
+    });
+
+    if (!imageFiles.length) return combinedText;
+
+    const content = [{ type: 'text', text: combinedText || '(veja a(s) imagem(ns) anexada(s))' }];
+    imageFiles.forEach((f) => content.push({ type: 'image_url', image_url: { url: f.dataUrl } }));
+    return content;
+  }
+
+  function buildDisplayContent(text) {
+    let display = text;
+    pendingAttachments.forEach((a) => {
+      display += `\n📎 ${a.name}${a.type === 'image' ? ' (imagem)' : ' (arquivo de texto)'}`;
+    });
+    return display;
+  }
+
+  // --- Sending ------------------------------------------------------------
+
   async function sendMessage() {
     const text = promptInput.value.trim();
-    if (!text || sendBtn.disabled) return;
+    if ((!text && !pendingAttachments.length) || sendBtn.disabled) return;
     const conv = getActive();
+
+    const apiContent = buildApiContent(text);
+    const displayContent = buildDisplayContent(text);
+
     if (conv.messages.length === 0) {
-      conv.title = text.slice(0, 40);
+      conv.title = (text || pendingAttachments[0]?.name || 'Novo Chat').slice(0, 40);
     }
-    conv.messages.push({ role: 'user', content: text });
+    conv.messages.push({ role: 'user', content: displayContent });
     persist();
     renderSidebar();
     renderMessages();
     promptInput.value = '';
+    pendingAttachments = [];
+    renderAttachments();
     autoResize();
 
     const bubble = appendMessageEl('assistant', '');
@@ -141,7 +283,8 @@
       const preset = PROMPT_PRESETS.find((p) => p.id === promptSelect.value);
       const apiMessages = [];
       if (preset && preset.system) apiMessages.push({ role: 'system', content: preset.system });
-      apiMessages.push(...conv.messages);
+      apiMessages.push(...conv.messages.slice(0, -1));
+      apiMessages.push({ role: 'user', content: apiContent });
 
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -211,8 +354,8 @@
     activeId = createConversation();
     renderSidebar();
     renderMessages();
+    closeSidebar();
   });
-  toggleSidebarBtn.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
 
   renderSidebar();
   renderMessages();
