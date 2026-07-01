@@ -1,7 +1,8 @@
 {
-  "name": "Chat IA Aberta",
-  "short_name": "ChatIA",
-  "description": "Chat com acesso exclusivo a modelos abertos de IA",
+  "id": "/",
+  "name": "MultiIA",
+  "short_name": "MultiIA",
+  "description": "Chat com acesso exclusivo a modelos abertos de IA (GLM, Kimi, DeepSeek, Qwen, MiniMax)",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -23,7 +23,7 @@ Criar, testar e evoluir aplicações web, automações e protótipos diretamente
 
 ---
 
-## Chat IA Aberta (PWA)
+## MultiIA (PWA)
 
 PWA de chat com acesso exclusivo a modelos abertos de IA via [OpenRouter](https://openrouter.ai),
 no estilo do Open WebUI: seletor de modelo, presets de prompt, histórico de conversas

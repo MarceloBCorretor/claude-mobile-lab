@@ -1,5 +1,5 @@
 {
-  "name": "chat-ia-aberta",
+  "name": "multiia",
   "version": "1.0.0",
   "private": true,
   "description": "PWA de chat com acesso exclusivo a modelos abertos de IA (via OpenRouter), com area de administrador para chaves de API.",
