@@ -1,5 +1,5 @@
 (() => {
-  const STORAGE_KEY = 'chatia_conversations_v1';
+  const STORAGE_KEY = 'multiia_conversations_v1';
   const PROMPT_PRESETS = [
     { id: '', label: 'Selecionar um Prompt', system: '' },
     { id: 'assistant', label: 'Assistente geral', system: 'Voce e um assistente util, direto e honesto.' },

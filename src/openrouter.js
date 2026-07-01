@@ -7,7 +7,7 @@ async function streamChatCompletion({ apiKey, model, messages, siteUrl, siteName
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
       'HTTP-Referer': siteUrl || 'https://criativopublicitario.com.br',
-      'X-Title': siteName || 'Chat IA Aberta'
+      'X-Title': siteName || 'MultiIA'
     },
     body: JSON.stringify({ model, messages, stream: true })
   });

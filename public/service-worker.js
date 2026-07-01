@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chatia-shell-v1';
+const CACHE_NAME = 'multiia-shell-v2';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -7,7 +7,10 @@ const APP_SHELL = [
   '/js/chat.js',
   '/js/admin.js',
   '/js/pwa.js',
-  '/manifest.webmanifest'
+  '/manifest.webmanifest',
+  '/favicon.ico',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {

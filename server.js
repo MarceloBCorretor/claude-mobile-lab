@@ -119,6 +119,6 @@ module.exports = app;
 if (require.main === module) {
   const port = process.env.PORT || 3000;
   app.listen(port, () => {
-    console.log(`Chat IA Aberta rodando em http://localhost:${port}`);
+    console.log(`MultiIA rodando em http://localhost:${port}`);
   });
 }
