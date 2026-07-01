@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Admin - Chat IA Aberta</title>
+<meta name="theme-color" content="#0e0e10" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="login-shell" id="loginShell">
+  <div class="login-card">
+    <h1>Area do Administrador</h1>
+    <input type="password" id="loginPassword" placeholder="Senha de administrador" autocomplete="current-password" />
+    <button class="primary-btn" id="loginBtn">Entrar</button>
+    <div class="msg-feedback error" id="loginFeedback"></div>
+  </div>
+</div>
+
+<div class="admin-shell" id="adminShell" style="display:none;">
+  <h1>Painel do Administrador</h1>
+  <div class="sub">Gerencie a chave da OpenRouter e os modelos abertos disponiveis no chat. <a href="index.html">&larr; Voltar ao chat</a></div>
+
+  <div id="platformBanner"></div>
+
+  <div class="card">
+    <h2>Chave de API (OpenRouter)</h2>
+    <div class="field">
+      <label id="apiKeyStatusLabel">Status</label>
+      <div class="row">
+        <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." autocomplete="off" />
+        <button class="primary-btn" id="saveKeyBtn" style="flex:0 0 auto;">Salvar chave</button>
+      </div>
+    </div>
+    <div class="msg-feedback" id="keyFeedback"></div>
+  </div>
+
+  <div class="card">
+    <h2>Modelos abertos habilitados</h2>
+    <table class="models-table">
+      <thead>
+        <tr><th>Ativo</th><th>ID do modelo (slug OpenRouter)</th><th>Nome exibido</th><th></th></tr>
+      </thead>
+      <tbody id="modelsBody"></tbody>
+    </table>
+    <div class="row" style="margin-top:12px;">
+      <button class="ghost-btn" id="addModelBtn" style="flex:0 0 auto;">+ Adicionar modelo</button>
+      <div class="spacer"></div>
+      <button class="primary-btn" id="saveModelsBtn" style="flex:0 0 auto;">Salvar modelos</button>
+    </div>
+    <div class="msg-feedback" id="modelsFeedback"></div>
+  </div>
+
+  <div class="card">
+    <h2>Alterar senha de administrador</h2>
+    <div class="field">
+      <label>Senha atual</label>
+      <input type="password" id="currentPasswordInput" />
+    </div>
+    <div class="field">
+      <label>Nova senha (min. 6 caracteres)</label>
+      <input type="password" id="newPasswordInput" />
+    </div>
+    <button class="primary-btn" id="changePasswordBtn">Alterar senha</button>
+    <div class="msg-feedback" id="passwordFeedback"></div>
+  </div>
+
+  <button class="ghost-btn" id="logoutBtn">Sair</button>
+</div>
+
+<script src="js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "chat-ia-aberta",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PWA de chat com acesso exclusivo a modelos abertos de IA (via OpenRouter), com area de administrador para chaves de API.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

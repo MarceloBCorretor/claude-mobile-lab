@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Chat IA Aberta</title>
+<meta name="description" content="Chat com acesso exclusivo a modelos abertos de IA" />
+<meta name="theme-color" content="#0e0e10" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <button class="new-chat-btn" id="newChatBtn">+ Novo Chat</button>
+    <div class="conversation-list" id="conversationList"></div>
+    <div class="sidebar-footer">
+      <span>Chat IA Aberta</span>
+      <a href="admin.html">Admin</a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <button class="icon-btn" id="toggleSidebarBtn" title="Mostrar/ocultar conversas">☰</button>
+      <select id="modelSelect"></select>
+      <select id="promptSelect">
+        <option value="">Selecionar um Prompt</option>
+      </select>
+      <div class="spacer"></div>
+    </div>
+
+    <div class="status-banner" id="statusBanner" style="display:none;"></div>
+
+    <div class="chat-scroll">
+      <div class="chat-inner" id="chatInner">
+        <div class="empty-state" id="emptyState">
+          <h1>Chat IA Aberta</h1>
+          <p>Converse com modelos abertos (GLM, Kimi, DeepSeek, Qwen, MiniMax) via OpenRouter.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="composer-inner">
+        <textarea id="promptInput" rows="1" placeholder="Digite uma mensagem..."></textarea>
+        <button class="send-btn" id="sendBtn" title="Enviar">➤</button>
+      </div>
+      <div class="hint">As respostas sao geradas por modelos de IA e podem conter erros.</div>
+    </div>
+  </main>
+</div>
+
+<script src="js/pwa.js"></script>
+<script src="js/chat.js"></script>
+</body>
+</html>
