@@ -102,10 +102,141 @@
     const wrap = document.createElement('div');
     wrap.className = `msg ${role}`;
     wrap.innerHTML = `<div class="avatar">${role === 'user' ? '🙂' : '🤖'}</div><div class="bubble"></div>`;
-    wrap.querySelector('.bubble').textContent = content;
+    const bubble = wrap.querySelector('.bubble');
+    if (role === 'assistant') {
+      renderRichContent(bubble, content);
+    } else {
+      bubble.textContent = content;
+    }
     chatInner.appendChild(wrap);
     document.querySelector('.chat-scroll').scrollTop = 999999;
-    return wrap.querySelector('.bubble');
+    return bubble;
+  }
+
+  // --- Code block rendering (copy / preview / download) -------------------
+
+  const CODE_FENCE_RE = /```(\w*)\n?([\s\S]*?)```/g;
+
+  function looksLikeHtml(lang, code) {
+    if (/^html$/i.test(lang)) return true;
+    const trimmed = code.trim();
+    return /^<!doctype html/i.test(trimmed) || /^<html[\s>]/i.test(trimmed);
+  }
+
+  function renderRichContent(bubble, text) {
+    bubble.innerHTML = '';
+    bubble.classList.remove('pending');
+    let lastIndex = 0;
+    let match;
+    CODE_FENCE_RE.lastIndex = 0;
+    let hasBlock = false;
+
+    while ((match = CODE_FENCE_RE.exec(text)) !== null) {
+      hasBlock = true;
+      const [full, lang, code] = match;
+      if (match.index > lastIndex) {
+        appendTextNode(bubble, text.slice(lastIndex, match.index));
+      }
+      bubble.appendChild(buildCodeBlock(lang.trim(), code.replace(/\n$/, '')));
+      lastIndex = match.index + full.length;
+    }
+    if (!hasBlock) {
+      bubble.textContent = text;
+      return;
+    }
+    if (lastIndex < text.length) {
+      appendTextNode(bubble, text.slice(lastIndex));
+    }
+  }
+
+  function appendTextNode(container, text) {
+    if (!text.trim()) return;
+    const span = document.createElement('span');
+    span.className = 'bubble-text';
+    span.textContent = text;
+    container.appendChild(span);
+  }
+
+  function buildCodeBlock(lang, code) {
+    const isHtml = looksLikeHtml(lang, code);
+    const block = document.createElement('div');
+    block.className = 'code-block';
+
+    const header = document.createElement('div');
+    header.className = 'code-block-header';
+    header.innerHTML = `<span class="code-lang">${escapeHtml(lang || 'codigo')}</span>`;
+
+    const actions = document.createElement('div');
+    actions.className = 'code-actions';
+
+    let previewWrap = null;
+    if (isHtml) {
+      const previewBtn = document.createElement('button');
+      previewBtn.className = 'code-action-btn';
+      previewBtn.innerHTML = '👁 <span>Preview</span>';
+      previewWrap = document.createElement('div');
+      previewWrap.className = 'code-preview-wrap';
+      previewWrap.hidden = true;
+      let loaded = false;
+      previewBtn.addEventListener('click', () => {
+        const willShow = previewWrap.hidden;
+        previewWrap.hidden = !willShow;
+        previewBtn.innerHTML = willShow ? '✕ <span>Fechar</span>' : '👁 <span>Preview</span>';
+        if (willShow && !loaded) {
+          const iframe = document.createElement('iframe');
+          iframe.className = 'code-preview-iframe';
+          iframe.setAttribute('sandbox', 'allow-scripts');
+          iframe.srcdoc = code;
+          previewWrap.appendChild(iframe);
+          loaded = true;
+        }
+      });
+      actions.appendChild(previewBtn);
+    }
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'code-action-btn';
+    copyBtn.innerHTML = '📋 <span>Copiar</span>';
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(code);
+        copyBtn.innerHTML = '✅ <span>Copiado</span>';
+      } catch {
+        copyBtn.innerHTML = '⚠️ <span>Falhou</span>';
+      }
+      setTimeout(() => { copyBtn.innerHTML = '📋 <span>Copiar</span>'; }, 1800);
+    });
+    actions.appendChild(copyBtn);
+
+    if (isHtml) {
+      const downloadBtn = document.createElement('button');
+      downloadBtn.className = 'code-action-btn primary';
+      downloadBtn.innerHTML = '⬇ <span>Baixar .html</span>';
+      downloadBtn.addEventListener('click', () => {
+        const blob = new Blob([code], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `multiia-${Date.now()}.html`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      });
+      actions.appendChild(downloadBtn);
+    }
+
+    header.appendChild(actions);
+    block.appendChild(header);
+    if (previewWrap) block.appendChild(previewWrap);
+
+    const pre = document.createElement('pre');
+    const codeEl = document.createElement('code');
+    codeEl.textContent = code;
+    pre.appendChild(codeEl);
+    block.appendChild(pre);
+
+    return block;
   }
 
   async function loadModels() {
@@ -326,6 +457,7 @@
         }
       }
       bubble.classList.remove('pending');
+      renderRichContent(bubble, full || '(sem resposta)');
       conv.messages.push({ role: 'assistant', content: full || '(sem resposta)' });
       persist();
     } catch (err) {
