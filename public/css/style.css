@@ -353,6 +353,16 @@ select:focus, input:focus, textarea:focus {
   white-space: pre;
 }
 
+.generated-media {
+  display: block;
+  max-width: 100%;
+  border-radius: 12px;
+  margin: 6px 0;
+  border: 1px solid var(--border);
+}
+.media-actions { display: flex; margin-top: 4px; }
+.media-actions .code-action-btn { text-decoration: none; }
+
 .fullscreen-preview {
   position: absolute;
   inset: 0;

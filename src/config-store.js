@@ -11,11 +11,13 @@ const CONFIG_FILE = path.join(DATA_DIR, 'runtime-config.json');
 const IS_VERCEL = Boolean(process.env.VERCEL);
 
 const DEFAULT_MODELS = [
-  { id: 'z-ai/glm-5.2', label: 'GLM-5.2', enabled: true },
-  { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6', enabled: true },
-  { id: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4-Pro', enabled: true },
-  { id: 'qwen/qwen3', label: 'Qwen3', enabled: true },
-  { id: 'minimax/minimax-m2.7', label: 'MiniMax M2.7', enabled: true }
+  { id: 'z-ai/glm-5.2', label: 'GLM-5.2', enabled: true, kind: 'chat' },
+  { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6', enabled: true, kind: 'chat' },
+  { id: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4-Pro', enabled: true, kind: 'chat' },
+  { id: 'qwen/qwen3', label: 'Qwen3', enabled: true, kind: 'chat' },
+  { id: 'minimax/minimax-m2.7', label: 'MiniMax M2.7', enabled: true, kind: 'chat' },
+  { id: 'minimax/image-01', label: 'MiniMax Imagem', enabled: true, kind: 'image' },
+  { id: 'minimax/hailuo-2.3', label: 'MiniMax Video', enabled: true, kind: 'video' }
 ];
 
 function hashPassword(password, salt) {
@@ -52,7 +54,7 @@ function defaultAdminPassword() {
 function loadConfig() {
   const fileConfig = readFileConfig() || {};
   const models = Array.isArray(fileConfig.models) && fileConfig.models.length
-    ? fileConfig.models
+    ? fileConfig.models.map((m) => ({ kind: 'chat', ...m }))
     : DEFAULT_MODELS;
 
   let adminPasswordHash = fileConfig.adminPasswordHash;
@@ -111,8 +113,8 @@ function setAdminPassword(newPassword) {
   return saveConfig({ adminPasswordSalt: salt, adminPasswordHash: hash });
 }
 
-function getEnabledModels() {
-  return cache.models.filter((m) => m.enabled);
+function getEnabledModels(kind = 'chat') {
+  return cache.models.filter((m) => m.enabled && (m.kind || 'chat') === kind);
 }
 
 module.exports = {

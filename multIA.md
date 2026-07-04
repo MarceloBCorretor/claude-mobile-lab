@@ -23,19 +23,30 @@ projetos — o MultiIA é o primeiro/principal deles).
 
 ## 3. Modelos configurados
 
-Todos acessados via **OpenRouter** (`OPENROUTER_API_KEY`), editáveis em `/admin`:
+Todos acessados via **OpenRouter** (`OPENROUTER_API_KEY`), editáveis em `/admin`.
+Cada modelo tem um campo **Tipo** (`kind`): `chat`, `image` ou `video` — controla em
+qual optgroup do seletor de modelo ele aparece e qual API da OpenRouter é chamada.
 
-| Modelo | Slug atual no admin |
-|---|---|
-| GLM-5.2 | `z-ai/glm-5.2` |
-| Kimi K2.6 | `moonshotai/kimi-k2.6` |
-| DeepSeek V4-Pro | `deepseek/deepseek-v4-pro` |
-| Qwen3 | `qwen/qwen3` |
-| MiniMax M2.7 | `minimax/minimax-m2.7` |
+| Modelo | Slug atual no admin | Tipo |
+|---|---|---|
+| GLM-5.2 | `z-ai/glm-5.2` | chat |
+| Kimi K2.6 | `moonshotai/kimi-k2.6` | chat |
+| DeepSeek V4-Pro | `deepseek/deepseek-v4-pro` | chat |
+| Qwen3 | `qwen/qwen3` | chat |
+| MiniMax M2.7 | `minimax/minimax-m2.7` | chat |
+| MiniMax Imagem | `minimax/image-01` | image |
+| MiniMax Video | `minimax/hailuo-2.3` | video |
 
 > Os slugs foram um "melhor palpite" no momento da criação (modelos muito recentes).
 > Se o chat der erro de modelo não encontrado, confira o slug exato em
 > https://openrouter.ai/models e ajuste em `/admin`.
+
+**Geração de imagem/vídeo:** diferente do chat de texto, cada geração tem **custo real**
+na conta OpenRouter (vídeo é bem mais caro que imagem). Usa as APIs oficiais e recentes
+da própria OpenRouter — `POST /api/v1/images` (síncrona, retorna base64) e
+`POST /api/v1/videos` (assíncrona: cria um job, o cliente faz polling em
+`GET /api/v1/videos/{id}` a cada 5s até `status:"completed"`, então usa `unsigned_urls`
+para exibir/baixar). Ver seção 6.8.
 
 **Recomendação de uso:** Kimi K2.6 é o que o usuário relatou responder melhor no geral,
 e é o indicado para tarefas de análise de documentos longos (PDF/anexos), já que a
@@ -218,14 +229,62 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
 - Correção: mover `.sidebar-backdrop` para dentro de `.app-shell` (mesma stacking
   context de `.sidebar`), onde o z-index volta a funcionar como esperado.
 
+### 6.8 Geração de imagem/vídeo (`src/media-generation.js`)
+- Cada modelo configurado agora tem um campo `kind`: `chat` (padrão), `image` ou
+  `video`. `store.getEnabledModels(kind)` filtra por esse campo; `GET /api/models`
+  continua retornando só os de chat (compatibilidade com o seletor de texto),
+  enquanto `GET /api/models/media` retorna imagem+vídeo para popular dois
+  `<optgroup>` extras ("🎨 Geração de imagem" / "🎬 Geração de vídeo") no mesmo
+  `<select>` de modelo do composer.
+- **Custo real:** diferente do chat de texto (que também tem custo, mas por
+  token), cada geração de imagem ou vídeo é cobrada por chamada na conta
+  OpenRouter — vídeo é significativamente mais caro que imagem. Não há limite ou
+  confirmação extra no app antes de gerar; o usuário decidiu conscientemente
+  aceitar esse custo.
+- **API usada:** os endpoints novos e oficiais da própria OpenRouter (não uma
+  API de terceiro por trás dela):
+  - `POST https://openrouter.ai/api/v1/images` — síncrono. Corpo
+    `{ model, prompt, aspect_ratio? }`. Resposta traz `data: [{ b64_json,
+    media_type }]` (ou `url` dependendo do modelo); o servidor converte para
+    `data:<mime>;base64,...` antes de devolver ao frontend, então a imagem nunca
+    precisa de uma segunda requisição pra ser exibida.
+  - `POST https://openrouter.ai/api/v1/videos` — assíncrono. Cria um job e
+    retorna `{ id, status: "pending" }`. O frontend faz polling em
+    `GET /api/generate/video/:jobId` → `GET https://openrouter.ai/api/v1/videos/{id}`
+    a cada 5s (até ~90 tentativas, ~7.5min) até `status === "completed"`, então usa
+    `unsigned_urls` para exibir (`<video controls>`) e baixar.
+  - Ambos exigem sessão autenticada (`session.requireAdmin`), igual ao resto do
+    chat.
+- **Frontend (`chat.js`):** ao selecionar um modelo de imagem/vídeo no composer,
+  `sendMessage()` desvia para `sendMediaGeneration(kind, prompt)` em vez do fluxo
+  normal de streaming de texto — anexos são bloqueados nesse modo (aviso
+  explícito, já que a API de geração não aceita imagem de entrada nesses
+  modelos). A bolha do assistente mostra "Gerando imagem/vídeo..." enquanto
+  aguarda e depois é substituída (`renderMediaInBubble`) pela mídia real
+  (`<img>`/`<video class="generated-media">`) mais um botão "⬇ Abrir/Baixar" —
+  sem o botão "Copiar" de texto, que não faz sentido aqui.
+- **Modelos configurados (escopo atual, só MiniMax):** `minimax/image-01`
+  (imagem) e `minimax/hailuo-2.3` (vídeo) — ver tabela da seção 3. Editável em
+  `/admin` como qualquer outro modelo, incluindo o campo "Tipo" (Chat/Imagem/
+  Vídeo) na tabela.
+- **Ainda não verificado contra a API real:** todo o fluxo foi testado
+  localmente via Playwright com as rotas `/api/generate/image` e
+  `/api/generate/video*` mockadas (respostas fake, sem gastar crédito real). Os
+  slugs `minimax/image-01` e `minimax/hailuo-2.3`, bem como o formato exato da
+  resposta da OpenRouter para esses modelos específicos, ainda precisam ser
+  confirmados na primeira geração real em produção — se a OpenRouter usar um
+  slug ou formato de resposta diferente do documentado, será preciso ajustar
+  `src/media-generation.js` e/ou o slug no admin.
+
 ## 7. Painel administrador (`public/admin.html` + `public/js/admin.js`)
 
 - Login por senha (`POST /api/admin/login`), sessão via cookie `admin_session`
   assinado com HMAC (`src/session.js`), válido por 12h.
 - Mostra se a chave da OpenRouter está configurada (e a origem: variável de
   ambiente ou arquivo local) — nunca expõe o valor da chave já salva.
-- Tabela de modelos: habilitar/desabilitar, editar slug e nome exibido, adicionar
-  ou remover linhas.
+- Tabela de modelos: habilitar/desabilitar, editar slug e nome exibido, escolher
+  o **Tipo** (Chat / Imagem / Vídeo — ver seção 6.8), adicionar ou remover
+  linhas.
 - Troca de senha do admin (exige senha atual).
 - Banner de aviso diferenciado por plataforma: na Vercel, deixa claro que
   alterações feitas ali só duram até o próximo cold start/deploy (recomenda usar
@@ -282,8 +341,9 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
 | #5 | Code blocks: copy/preview/download | Parser de blocos de código nas respostas, preview sandboxed, fix de overflow horizontal |
 | #6 | PDF text extraction | pdf.js self-hosted, extração de texto de PDF nos anexos |
 | #7 | OCR fallback for scanned PDFs | tesseract.js self-hosted + traineddata em português, fallback automático para PDFs sem texto |
-| #8 | Reference doc + sidebar bug + fullscreen preview | `multIA.md`, correção do z-index do backdrop (Novo Chat destravado), preview de HTML em tela cheia |
-| #9 (a caminho) | Server-side conversation memory | Login obrigatório no chat, `src/conversation-store.js` (Postgres/arquivo), histórico sincronizado entre aparelhos |
+| #8 | Docs + bug fixes + cross-device conversation memory | `multIA.md`, correção do z-index do backdrop (Novo Chat destravado), preview de HTML em tela cheia, `src/conversation-store.js` (Postgres/arquivo), login obrigatório no chat |
+| #9 | WhatsApp preset + reply copy button + study templates | Preset "Revisar p/ WhatsApp", botão Copiar em toda resposta, 6 templates de técnica de estudo no seletor de prompts |
+| #10 (a caminho) | Image/video generation via OpenRouter | `src/media-generation.js`, campo `kind` nos modelos, endpoints `/api/generate/image` e `/api/generate/video`, UI de mídia gerada no chat (só MiniMax por enquanto) |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
@@ -310,3 +370,7 @@ sobre um PR já mesclado).
 - Nenhum teste automatizado (unit/e2e) foi deixado no repositório — toda a
   verificação até agora foi manual/exploratória (Playwright ad-hoc, descartado
   após uso).
+- Geração de imagem/vídeo (seção 6.8) só foi testada com respostas mockadas —
+  a primeira geração real em produção pode revelar que o slug ou o formato de
+  resposta da OpenRouter para `minimax/image-01`/`minimax/hailuo-2.3` é
+  diferente do documentado, exigindo ajuste em `src/media-generation.js`.

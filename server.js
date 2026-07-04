@@ -4,6 +4,7 @@ const store = require('./src/config-store');
 const session = require('./src/session');
 const conversationStore = require('./src/conversation-store');
 const { streamChatCompletion } = require('./src/openrouter');
+const { generateImage, createVideoJob, pollVideoJob } = require('./src/media-generation');
 
 const app = express();
 
@@ -13,7 +14,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 // --- Public API ---------------------------------------------------------
 
 app.get('/api/models', (_req, res) => {
-  res.json({ models: store.getEnabledModels().map(({ id, label }) => ({ id, label })) });
+  res.json({ models: store.getEnabledModels('chat').map(({ id, label }) => ({ id, label })) });
+});
+
+app.get('/api/models/media', (_req, res) => {
+  res.json({
+    models: [
+      ...store.getEnabledModels('image').map(({ id, label }) => ({ id, label, kind: 'image' })),
+      ...store.getEnabledModels('video').map(({ id, label }) => ({ id, label, kind: 'video' }))
+    ]
+  });
 });
 
 app.post('/api/chat', session.requireAdmin, async (req, res) => {
@@ -23,7 +33,7 @@ app.post('/api/chat', session.requireAdmin, async (req, res) => {
   }
 
   const config = store.getConfig();
-  const model = store.getEnabledModels().find((m) => m.id === modelId);
+  const model = store.getEnabledModels('chat').find((m) => m.id === modelId);
   if (!model) {
     return res.status(400).json({ error: 'Modelo nao habilitado' });
   }
@@ -44,6 +54,59 @@ app.post('/api/chat', session.requireAdmin, async (req, res) => {
     } else {
       res.end();
     }
+  }
+});
+
+// --- Image/video generation (OpenRouter) ---------------------------------
+
+app.post('/api/generate/image', session.requireAdmin, async (req, res) => {
+  const { modelId, prompt, aspectRatio } = req.body || {};
+  if (!modelId || typeof prompt !== 'string' || !prompt.trim()) {
+    return res.status(400).json({ error: 'modelId e prompt sao obrigatorios' });
+  }
+  const config = store.getConfig();
+  const model = store.getEnabledModels('image').find((m) => m.id === modelId);
+  if (!model) return res.status(400).json({ error: 'Modelo de imagem nao habilitado' });
+  if (!config.openrouterApiKey) {
+    return res.status(503).json({ error: 'Chave da OpenRouter nao configurada. Peca ao administrador para configura-la em /admin.' });
+  }
+  try {
+    const result = await generateImage({ apiKey: config.openrouterApiKey, model: modelId, prompt, aspectRatio });
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: 'Falha ao gerar imagem', details: err.message });
+  }
+});
+
+app.post('/api/generate/video', session.requireAdmin, async (req, res) => {
+  const { modelId, prompt, aspectRatio, duration } = req.body || {};
+  if (!modelId || typeof prompt !== 'string' || !prompt.trim()) {
+    return res.status(400).json({ error: 'modelId e prompt sao obrigatorios' });
+  }
+  const config = store.getConfig();
+  const model = store.getEnabledModels('video').find((m) => m.id === modelId);
+  if (!model) return res.status(400).json({ error: 'Modelo de video nao habilitado' });
+  if (!config.openrouterApiKey) {
+    return res.status(503).json({ error: 'Chave da OpenRouter nao configurada. Peca ao administrador para configura-la em /admin.' });
+  }
+  try {
+    const job = await createVideoJob({ apiKey: config.openrouterApiKey, model: modelId, prompt, aspectRatio, duration });
+    res.json(job);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: 'Falha ao iniciar geracao de video', details: err.message });
+  }
+});
+
+app.get('/api/generate/video/:jobId', session.requireAdmin, async (req, res) => {
+  const config = store.getConfig();
+  if (!config.openrouterApiKey) {
+    return res.status(503).json({ error: 'Chave da OpenRouter nao configurada.' });
+  }
+  try {
+    const status = await pollVideoJob({ apiKey: config.openrouterApiKey, jobId: req.params.jobId });
+    res.json(status);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: 'Falha ao consultar status do video', details: err.message });
   }
 });
 
@@ -107,7 +170,8 @@ app.post('/api/admin/config', session.requireAdmin, (req, res) => {
       .map((m) => ({
         id: m.id.trim(),
         label: (typeof m.label === 'string' && m.label.trim()) || m.id.trim(),
-        enabled: Boolean(m.enabled)
+        enabled: Boolean(m.enabled),
+        kind: ['chat', 'image', 'video'].includes(m.kind) ? m.kind : 'chat'
       }));
     if (cleaned.length) patch.models = cleaned;
   }
