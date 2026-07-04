@@ -2,6 +2,7 @@ const path = require('path');
 const express = require('express');
 const store = require('./src/config-store');
 const session = require('./src/session');
+const conversationStore = require('./src/conversation-store');
 const { streamChatCompletion } = require('./src/openrouter');
 
 const app = express();
@@ -15,7 +16,7 @@ app.get('/api/models', (_req, res) => {
   res.json({ models: store.getEnabledModels().map(({ id, label }) => ({ id, label })) });
 });
 
-app.post('/api/chat', async (req, res) => {
+app.post('/api/chat', session.requireAdmin, async (req, res) => {
   const { modelId, messages } = req.body || {};
   if (!modelId || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: 'modelId e messages sao obrigatorios' });
@@ -60,6 +61,26 @@ app.post('/api/admin/login', (req, res) => {
 app.post('/api/admin/logout', (_req, res) => {
   session.clearSessionCookie(res);
   res.json({ ok: true });
+});
+
+// --- Conversation memory (cross-device) ---------------------------------
+
+app.get('/api/conversations', session.requireAdmin, async (_req, res) => {
+  try {
+    const conversations = await conversationStore.getConversations();
+    res.json({ conversations, persistent: conversationStore.usePostgres || store.isPersistent() });
+  } catch (err) {
+    res.status(500).json({ error: 'Falha ao carregar conversas', details: err.message });
+  }
+});
+
+app.put('/api/conversations', session.requireAdmin, async (req, res) => {
+  try {
+    await conversationStore.saveConversations(req.body.conversations || []);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Falha ao salvar conversas', details: err.message });
+  }
 });
 
 app.get('/api/admin/config', session.requireAdmin, (_req, res) => {
