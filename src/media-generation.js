@@ -41,10 +41,11 @@ async function generateImage({ apiKey, model, prompt, aspectRatio }) {
   return { images, usage: data.usage };
 }
 
-async function createVideoJob({ apiKey, model, prompt, aspectRatio, duration }) {
+async function createVideoJob({ apiKey, model, prompt, aspectRatio, duration, resolution }) {
   const body = { model, prompt };
   if (aspectRatio) body.aspect_ratio = aspectRatio;
   if (duration) body.duration = duration;
+  if (resolution) body.resolution = resolution;
   const data = await openrouterFetch(VIDEOS_URL, { apiKey, method: 'POST', body });
   return { id: data.id, status: data.status || 'pending' };
 }

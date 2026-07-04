@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>MultiIA</title>
-<meta name="description" content="Chat com acesso exclusivo a modelos abertos de IA" />
+<title>MultiIA - Estúdio de Artes</title>
+<meta name="description" content="Geração de imagem e vídeo com IA via OpenRouter" />
 <meta name="theme-color" content="#0e0a16" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -29,24 +29,13 @@
 </div>
 
 <div class="app-shell" id="appShell" style="display:none;">
-  <aside class="sidebar glass" id="sidebar">
-    <button class="new-chat-btn" id="newChatBtn">+ Novo Chat</button>
-    <div class="conversation-list" id="conversationList"></div>
-    <div class="sidebar-footer">
-      <span>MultiIA</span>
-      <a href="admin.html">Admin</a>
-    </div>
-  </aside>
-
-  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-
   <main class="main">
     <div class="topbar glass">
-      <button class="icon-btn" id="toggleSidebarBtn" title="Mostrar/ocultar conversas">☰</button>
-      <select id="modelSelect"></select>
-      <select id="promptSelect">
-        <option value="">Selecionar um Prompt</option>
-      </select>
+      <div class="kind-toggle" id="kindToggle">
+        <button type="button" class="kind-btn active" data-kind="image">🎨 Imagem</button>
+        <button type="button" class="kind-btn" data-kind="video">🎬 Vídeo</button>
+      </div>
+      <select id="studioModelSelect"></select>
       <div class="spacer"></div>
     </div>
 
@@ -54,37 +43,36 @@
 
     <div class="main-content" id="mainContent">
       <div class="chat-scroll">
-        <div class="chat-inner" id="chatInner">
+        <div class="studio-gallery" id="studioGallery">
           <div class="empty-state" id="emptyState">
-            <h1>MultiIA</h1>
-            <p>Converse com modelos abertos (GLM, Kimi, DeepSeek, Qwen, MiniMax) via OpenRouter.</p>
+            <h1>Estúdio de Artes</h1>
+            <p>Gere imagens e vídeos com IA via OpenRouter. Cada geração tem custo real na sua conta - os
+            resultados não ficam salvos após recarregar a página, baixe o que quiser guardar.</p>
           </div>
         </div>
       </div>
 
       <div class="composer">
-        <div class="attachments-row" id="attachmentsRow"></div>
+        <div class="studio-options" id="studioOptions"></div>
         <div class="composer-inner glass">
-          <button class="attach-btn" id="attachBtn" title="Anexar arquivo">📎</button>
-          <input type="file" id="fileInput" accept="image/*,.txt,.md,.csv,.json,.pdf" multiple hidden />
-          <textarea id="promptInput" rows="1" placeholder="Digite uma mensagem..."></textarea>
-          <button class="send-btn" id="sendBtn" title="Enviar">➤</button>
+          <textarea id="promptInput" rows="2" placeholder="Descreva a imagem ou o vídeo que você quer gerar..."></textarea>
+          <button class="send-btn" id="sendBtn" title="Gerar">➤</button>
         </div>
-        <div class="hint">As respostas sao geradas por modelos de IA e podem conter erros.</div>
+        <div class="hint">As gerações têm custo real na conta OpenRouter e podem levar alguns minutos (vídeo).</div>
       </div>
     </div>
 
     <nav class="bottom-nav glass">
-      <button class="active" id="navChat"><span class="nav-icon">💬</span>Chat</button>
-      <button id="navHistory"><span class="nav-icon">🕘</span>Histórico</button>
-      <button id="navPrompts"><span class="nav-icon">✨</span>Prompts</button>
-      <a href="studio.html"><span class="nav-icon">🖼️</span>Estúdio</a>
+      <a href="index.html"><span class="nav-icon">💬</span>Chat</a>
+      <a href="index.html"><span class="nav-icon">🕘</span>Histórico</a>
+      <a href="index.html"><span class="nav-icon">✨</span>Prompts</a>
+      <a href="studio.html" class="active"><span class="nav-icon">🖼️</span>Estúdio</a>
       <a href="admin.html"><span class="nav-icon">⚙️</span>Admin</a>
     </nav>
   </main>
 </div>
 
 <script src="js/pwa.js"></script>
-<script src="js/chat.js"></script>
+<script src="js/studio.js"></script>
 </body>
 </html>

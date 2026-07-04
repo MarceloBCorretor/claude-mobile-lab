@@ -1,11 +1,13 @@
-const CACHE_NAME = 'multiia-shell-v10';
+const CACHE_NAME = 'multiia-shell-v11';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/admin.html',
+  '/studio.html',
   '/css/style.css',
   '/js/chat.js',
   '/js/admin.js',
+  '/js/studio.js',
   '/js/pwa.js',
   '/manifest.webmanifest',
   '/favicon.ico',

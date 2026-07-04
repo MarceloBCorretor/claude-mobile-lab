@@ -16,7 +16,7 @@ const DEFAULT_MODELS = [
   { id: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4-Pro', enabled: true, kind: 'chat' },
   { id: 'qwen/qwen3', label: 'Qwen3', enabled: true, kind: 'chat' },
   { id: 'minimax/minimax-m2.7', label: 'MiniMax M2.7', enabled: true, kind: 'chat' },
-  { id: 'minimax/image-01', label: 'MiniMax Imagem', enabled: true, kind: 'image' },
+  { id: 'google/gemini-3.1-flash-image-preview', label: 'Nano Banana 2 (Gemini)', enabled: true, kind: 'image' },
   { id: 'minimax/hailuo-2.3', label: 'MiniMax Video', enabled: true, kind: 'video' }
 ];
 

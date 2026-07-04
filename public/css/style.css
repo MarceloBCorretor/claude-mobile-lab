@@ -359,6 +359,7 @@ select:focus, input:focus, textarea:focus {
   border-radius: 12px;
   margin: 6px 0;
   border: 1px solid var(--border);
+  cursor: pointer;
 }
 .media-actions { display: flex; margin-top: 4px; }
 .media-actions .code-action-btn { text-decoration: none; }
@@ -388,6 +389,72 @@ select:focus, input:focus, textarea:focus {
   border: none;
   display: block;
   background: #fff;
+}
+.fullscreen-preview-media {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  object-fit: contain;
+  background: #000;
+}
+
+/* --- Estudio de Artes (image/video generation, separate from Chat) --- */
+
+.kind-toggle {
+  display: flex;
+  gap: 4px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 3px;
+}
+.kind-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+.kind-btn.active { background: var(--accent); color: #fff; }
+
+.studio-options {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 6px 8px;
+}
+.studio-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.studio-option select { min-width: 90px; padding: 6px 8px; }
+
+.studio-gallery {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.studio-card {
+  border: 1px solid var(--border);
+  background: var(--bg-1);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.studio-card.pending { display: flex; align-items: center; justify-content: center; min-height: 80px; }
+.studio-card-status { color: var(--text-dim); font-size: 14px; }
+.studio-card-meta {
+  color: var(--text-dim);
+  font-size: 13px;
+  margin-top: 6px;
+  word-break: break-word;
 }
 
 .attachments-row {
