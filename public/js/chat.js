@@ -1,5 +1,4 @@
 (() => {
-  const STORAGE_KEY = 'multiia_conversations_v1';
   const MAX_TEXT_CHARS = 20000;
   const MAX_PDF_PAGES = 40;
   const MAX_OCR_PAGES = 10;
@@ -33,22 +32,30 @@
   const toggleSidebarBtn = document.getElementById('toggleSidebarBtn');
   const navHistory = document.getElementById('navHistory');
   const navPrompts = document.getElementById('navPrompts');
+  const loginShell = document.getElementById('loginShell');
+  const appShell = document.getElementById('appShell');
+  const loginPassword = document.getElementById('loginPassword');
+  const loginBtn = document.getElementById('loginBtn');
+  const loginFeedback = document.getElementById('loginFeedback');
 
   let models = [];
-  let conversations = loadConversations();
-  let activeId = conversations.length ? conversations[0].id : createConversation();
+  let conversations = [];
+  let activeId = null;
   let pendingAttachments = [];
 
-  function loadConversations() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch {
-      return [];
-    }
-  }
+  // --- Server-backed conversation memory (works across devices) -----------
 
-  function persist() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+  async function persist() {
+    try {
+      const res = await fetch('/api/conversations', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversations })
+      });
+      if (!res.ok) throw new Error(`Erro ${res.status}`);
+    } catch {
+      showBanner('warn', 'Nao foi possivel salvar o historico no servidor agora.');
+    }
   }
 
   function createConversation() {
@@ -658,7 +665,60 @@
     closeSidebar();
   });
 
-  renderSidebar();
-  renderMessages();
-  loadModels();
+  // --- Auth gate: chat requires the same login as /admin -------------------
+
+  function showLogin() {
+    loginShell.style.display = 'flex';
+    appShell.style.display = 'none';
+  }
+
+  function showApp() {
+    loginShell.style.display = 'none';
+    appShell.style.display = 'flex';
+  }
+
+  async function checkAuthAndBoot() {
+    try {
+      const res = await fetch('/api/conversations');
+      if (res.status === 401) {
+        showLogin();
+        return;
+      }
+      if (!res.ok) throw new Error(`Erro ${res.status}`);
+      const data = await res.json();
+      conversations = Array.isArray(data.conversations) ? data.conversations : [];
+      activeId = conversations.length ? conversations[0].id : createConversation();
+      showApp();
+      renderSidebar();
+      renderMessages();
+      loadModels();
+    } catch {
+      showLogin();
+      loginFeedback.textContent = 'Nao foi possivel conectar ao servidor.';
+    }
+  }
+
+  loginBtn.addEventListener('click', async () => {
+    loginFeedback.textContent = '';
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: loginPassword.value })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Falha no login');
+      }
+      loginPassword.value = '';
+      checkAuthAndBoot();
+    } catch (err) {
+      loginFeedback.textContent = err.message;
+    }
+  });
+  loginPassword.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') loginBtn.click();
+  });
+
+  checkAuthAndBoot();
 })();

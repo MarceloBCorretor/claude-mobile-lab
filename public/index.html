@@ -19,7 +19,16 @@
 <div class="blob blob-1"></div>
 <div class="blob blob-2"></div>
 
-<div class="app-shell">
+<div class="login-shell" id="loginShell" style="display:none;">
+  <div class="login-card glass">
+    <h1>MultiIA</h1>
+    <input type="password" id="loginPassword" placeholder="Senha" autocomplete="current-password" />
+    <button class="primary-btn" id="loginBtn">Entrar</button>
+    <div class="msg-feedback error" id="loginFeedback"></div>
+  </div>
+</div>
+
+<div class="app-shell" id="appShell" style="display:none;">
   <aside class="sidebar glass" id="sidebar">
     <button class="new-chat-btn" id="newChatBtn">+ Novo Chat</button>
     <div class="conversation-list" id="conversationList"></div>

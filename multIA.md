@@ -8,8 +8,8 @@
 
 PWA (Progressive Web App) de chat com **acesso exclusivo** a modelos abertos de IA,
 no estilo visual do Open WebUI (posteriormente evoluído para um tema glassmorphism
-próprio). É de uso pessoal/administrado: só quem tem a senha do painel `/admin`
-configura chaves e modelos; o chat em si fica público no domínio.
+próprio). É de uso pessoal/administrado: a **mesma senha** dá acesso ao chat E ao
+painel `/admin` (o chat deixou de ser público — ver seção 6.1).
 
 Vive dentro do repositório **`claude-mobile-lab`** (um "laboratório" de múltiplos
 projetos — o MultiIA é o primeiro/principal deles).
@@ -53,26 +53,28 @@ Backend **Express único** que funciona em dois ambientes sem duplicar código:
   como processo normal, ouvindo `PORT`. Filesystem é persistente.
 
 ```
-server.js              # App Express (fonte da verdade; local/Hostinger)
-api/index.js            # Wrapper serverless que reexporta server.js (Vercel)
-vercel.json              # outputDirectory=public + rewrite /api/*
-src/config-store.js       # Config (chave API, modelos, senha admin) — env vars + data/runtime-config.json
-src/session.js             # Sessão admin via cookie assinado (HMAC-SHA256)
-src/openrouter.js           # Proxy de streaming (SSE) para a API de chat da OpenRouter
-public/                     # Frontend estático (tudo servido por express.static)
-  index.html                  # Chat
-  admin.html                   # Painel administrador
-  css/style.css                 # Tema único (glass) usado por index e admin
-  js/chat.js                     # Toda a lógica do chat (ver seção 6)
-  js/admin.js                     # Lógica do painel admin
-  js/pwa.js                        # Registro do service worker
-  manifest.webmanifest               # Manifesto PWA (nome "MultiIA")
-  service-worker.js                   # Cache do app shell, estratégia network-first
-  favicon.ico, icons/*.png             # Ícones (16/32/180/192/512px)
-  js/vendor/pdfjs/                      # pdf.js self-hosted (leitura de PDF)
-  js/vendor/tesseract/                   # tesseract.js self-hosted (OCR, ver seção 6.5)
-data/runtime-config.json (gitignored)   # Config persistida SÓ em hosts com FS persistente
-.env.example                              # Variáveis de ambiente documentadas
+server.js                    # App Express (fonte da verdade; local/Hostinger)
+api/index.js                  # Wrapper serverless que reexporta server.js (Vercel)
+vercel.json                    # outputDirectory=public + rewrite /api/*
+src/config-store.js             # Config (chave API, modelos, senha admin) — env vars + data/runtime-config.json
+src/session.js                   # Sessão admin/chat via cookie assinado (HMAC-SHA256)
+src/openrouter.js                 # Proxy de streaming (SSE) para a API de chat da OpenRouter
+src/conversation-store.js           # Memória de conversas — Postgres (Vercel) ou data/conversations.json (Node)
+public/                               # Frontend estático (tudo servido por express.static)
+  index.html                            # Chat (com login gate embutido, ver seção 6.1)
+  admin.html                             # Painel administrador
+  css/style.css                           # Tema único (glass) usado por index e admin
+  js/chat.js                               # Toda a lógica do chat (ver seção 6)
+  js/admin.js                               # Lógica do painel admin
+  js/pwa.js                                  # Registro do service worker
+  manifest.webmanifest                         # Manifesto PWA (nome "MultiIA")
+  service-worker.js                             # Cache do app shell, estratégia network-first
+  favicon.ico, icons/*.png                       # Ícones (16/32/180/192/512px)
+  js/vendor/pdfjs/                                # pdf.js self-hosted (leitura de PDF)
+  js/vendor/tesseract/                             # tesseract.js self-hosted (OCR, ver seção 6.5)
+data/runtime-config.json (gitignored)    # Config persistida SÓ em hosts com FS persistente
+data/conversations.json (gitignored)      # Histórico de conversas — idem, só em hosts com FS persistente
+.env.example                                # Variáveis de ambiente documentadas
 ```
 
 ## 5. Configuração / variáveis de ambiente
@@ -80,9 +82,10 @@ data/runtime-config.json (gitignored)   # Config persistida SÓ em hosts com FS 
 | Variável | Para que serve | Onde configurar |
 |---|---|---|
 | `OPENROUTER_API_KEY` | Autentica as chamadas de chat na OpenRouter | Vercel: Project Settings → Environment Variables. Hostinger: `.env` local ou painel `/admin` (persiste em `data/runtime-config.json`) |
-| `ADMIN_PASSWORD` | Senha de login do `/admin` (hash é o que realmente é comparado) | Idem acima |
-| `SESSION_SECRET` | Segredo HMAC para assinar o cookie de sessão do admin | Idem acima |
+| `ADMIN_PASSWORD` | Senha de login do `/admin` **e também do chat** (hash é o que realmente é comparado) | Idem acima |
+| `SESSION_SECRET` | Segredo HMAC para assinar o cookie de sessão (chat + admin) | Idem acima |
 | `PORT` | Porta ao rodar `node server.js` localmente | `.env` local; ignorado na Vercel |
+| `POSTGRES_URL` (opcional) | Guarda o histórico de conversas em Postgres real — necessário na Vercel pra memória sobreviver a um redeploy | Vercel: Storage → Create Database → Postgres (preenche sozinho). Sem isso, cai no fallback de arquivo (`data/conversations.json`), que não persiste na Vercel |
 
 Precedência em `src/config-store.js`: valores salvos em `data/runtime-config.json`
 (via painel `/admin`) sobrepõem as variáveis de ambiente, exceto na Vercel, onde
@@ -97,14 +100,42 @@ Environment Variables + Redeploy.
 ## 6. Funcionalidades do frontend (`public/js/chat.js`)
 
 ### 6.1 Chat básico
-- Seleção de modelo (dropdown, populado via `GET /api/models`).
+- **Login obrigatório:** `index.html` tem um portão de login embutido (mesma senha
+  do `/admin`, mesmo cookie de sessão `admin_session`). Enquanto não autenticado,
+  `chat.js` mostra só a tela de senha; `GET /api/conversations` retorna 401 e é
+  isso que decide se mostra login ou app. `POST /api/chat` também exige sessão
+  válida agora (antes era público).
+- Seleção de modelo (dropdown, populado via `GET /api/models` — essa continua pública,
+  não expõe nada sensível).
 - Presets de prompt (dropdown "Selecionar um Prompt"): assistente geral, programador,
   tradutor PT/EN, redator publicitário — definem uma mensagem `system`.
 - Envio via `POST /api/chat`, resposta em streaming (SSE) renderizada com efeito de
   "digitando".
-- Histórico de conversas salvo em `localStorage` (`multiia_conversations_v1`), com
-  sidebar para navegar/criar/excluir conversas. **Não é sincronizado entre
-  dispositivos nem persistido no servidor.**
+- **Histórico de conversas guardado no servidor** (`GET`/`PUT /api/conversations`,
+  ambos atrás de login) — ver seção 6.1.1. Sidebar para navegar/criar/excluir
+  conversas. `localStorage` não é mais usado para isso (foi removido de propósito:
+  guardar só localmente impedia continuar a mesma conversa em outro aparelho, que
+  era exatamente o problema que o usuário reportou).
+
+#### 6.1.1 Memória de conversas entre aparelhos
+- `src/conversation-store.js` abstrai duas formas de guardar: se `POSTGRES_URL`
+  (ou `DATABASE_URL`/`POSTGRES_PRISMA_URL`) estiver definida, usa Postgres de
+  verdade (tabela `multiia_conversations`, criada automaticamente se não existir);
+  senão, cai em `data/conversations.json` (mesmo padrão do `config-store.js`).
+- Estratégia de escrita simples (adequada pra um usuário único, poucas conversas):
+  a cada mudança, o client manda o **array inteiro** de conversas via `PUT`, e o
+  servidor apaga tudo e reinsere (`DELETE` + `INSERT` numa transação, no caso do
+  Postgres). Não há endpoints por-conversa.
+- **Isso só persiste de verdade entre deploys/redeploys na Vercel se o Postgres
+  estiver configurado.** Sem isso, na Vercel, cada tentativa de salvar
+  (`persist()`) vai falhar silenciosamente com um aviso "Não foi possível salvar
+  o histórico no servidor agora" — isso é esperado e intencional (mesmo padrão de
+  aviso que a chave da OpenRouter já tinha), não é bug. Em host Node persistente
+  (Hostinger/local), funciona sem Postgres, gravando no arquivo.
+- **Ainda não testado contra um Postgres real** (o ambiente de desenvolvimento
+  sandbox não tem acesso de rede pra provisionar/testar isso) — testado e validado
+  só o caminho de arquivo local. Se/quando o usuário ativar o Postgres na Vercel,
+  vale conferir os logs de função da Vercel se algo falhar.
 
 ### 6.2 Layout / PWA
 - Tema **glassmorphism** escuro: blobs de gradiente desfocados no fundo, painéis
@@ -118,7 +149,7 @@ Environment Variables + Redeploy.
 - Service worker (`service-worker.js`) usa estratégia **network-first** (não
   cache-first) para que deploys novos apareçam sem precisar limpar cache do site.
   Versão do cache é bumped manualmente (`CACHE_NAME`) a cada mudança relevante de
-  assets — está em `multiia-shell-v6` no momento.
+  assets — está em `multiia-shell-v7` no momento.
 
 ### 6.3 Anexos no composer
 Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
@@ -163,13 +194,29 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
 - Todo bloco ganha botão **Copiar** (clipboard).
 - Blocos que parecem HTML completo (linguagem `html` ou começam com
   `<!DOCTYPE html>`/`<html>`) ganham também:
-  - **Preview**: renderiza num `<iframe sandbox="allow-scripts">` — **sem**
-    `allow-same-origin` de propósito (a combinação dos dois nesse tipo de preview
-    daria ao HTML gerado acesso ao localStorage/cookies do próprio app).
+  - **Preview**: abre um overlay **em tela cheia** (`.fullscreen-preview`,
+    absoluto dentro de `#mainContent`) que ocupa 100% da largura, entre o topbar
+    e a barra inferior (que continuam fixos/visíveis) — não é mais um iframe
+    pequeno indentado dentro da bolha de mensagem. Usa
+    `<iframe sandbox="allow-scripts">` — **sem** `allow-same-origin` de
+    propósito (a combinação dos dois nesse tipo de preview daria ao HTML gerado
+    acesso ao localStorage/cookies do próprio app). Tem seu próprio cabeçalho
+    com Fechar/Copiar/Baixar.
   - **Baixar .html**: gera o download via `Blob` + `URL.createObjectURL`.
 - Correção de bug: uma única linha de código muito longa forçava a bolha de
   mensagem inteira a estourar a largura da tela; corrigido com `min-width: 0` no
   flex item (`.msg .bubble`).
+
+### 6.7 Bug corrigido: "+ Novo Chat" não respondia ao toque
+- Causa raiz: `.sidebar-backdrop` (o fundo escurecido atrás do menu, pra fechar
+  ao tocar fora) vivia como filho direto do `<body>`, fora da stacking context
+  criada por `.app-shell` (`position:relative; z-index:1`). Como `.sidebar`
+  (z-index:50) estava DENTRO dessa context e o backdrop (z-index:40) estava FORA
+  dela, na comparação de empilhamento ao nível do `<body>` o backdrop (40) vencia
+  o `.app-shell` inteiro (1) — cobrindo até os botões do próprio menu, incluindo
+  "+ Novo Chat", sem nenhum erro visível.
+- Correção: mover `.sidebar-backdrop` para dentro de `.app-shell` (mesma stacking
+  context de `.sidebar`), onde o z-index volta a funcionar como esperado.
 
 ## 7. Painel administrador (`public/admin.html` + `public/js/admin.js`)
 
@@ -191,7 +238,8 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
   salt aleatório) via `crypto` nativo do Node.
 - Cookie de sessão é `HttpOnly`, `SameSite=Lax`, assinado com HMAC-SHA256
   (`SESSION_SECRET`) — não é um JWT de biblioteca externa, é uma implementação
-  mínima própria.
+  mínima própria. A mesma sessão vale tanto pro chat quanto pro `/admin` (não há
+  dois níveis de permissão — é uso pessoal de uma pessoa só).
 - Preview de HTML gerado por IA roda em iframe sandboxed sem acesso ao mesmo
   contexto de origem do app (ver 6.6).
 - Nenhuma chave (API key, senha) fica hardcoded no repositório — tudo vem de
@@ -207,6 +255,9 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
   mesclado, só aguardar 1-2 minutos.
 - Domínio de produção: `claude-mobile-lab.vercel.app`.
 - Variáveis de ambiente já configuradas (ver seção 5).
+- **Pendente:** ativar Postgres (Storage → Create Database) pra memória de
+  conversas persistir de verdade entre deploys — sem isso, funciona só durante o
+  tempo de vida de cada instância serverless (ver seção 6.1.1).
 - **Importante:** este projeto foi desenvolvido a partir de um ambiente sandbox
   cujo proxy de rede bloqueia acesso a `vercel.com`/`api.vercel.com` por política —
   ou seja, uma IA trabalhando neste repo a partir de um ambiente parecido **não
@@ -231,6 +282,8 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
 | #5 | Code blocks: copy/preview/download | Parser de blocos de código nas respostas, preview sandboxed, fix de overflow horizontal |
 | #6 | PDF text extraction | pdf.js self-hosted, extração de texto de PDF nos anexos |
 | #7 | OCR fallback for scanned PDFs | tesseract.js self-hosted + traineddata em português, fallback automático para PDFs sem texto |
+| #8 | Reference doc + sidebar bug + fullscreen preview | `multIA.md`, correção do z-index do backdrop (Novo Chat destravado), preview de HTML em tela cheia |
+| #9 (a caminho) | Server-side conversation memory | Login obrigatório no chat, `src/conversation-store.js` (Postgres/arquivo), histórico sincronizado entre aparelhos |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
@@ -239,8 +292,10 @@ sobre um PR já mesclado).
 
 ## 11. Limitações conhecidas / possíveis próximos passos
 
-- Histórico de conversas só existe no navegador (localStorage) — trocar de
-  aparelho/navegador perde o histórico. Não há conta de usuário nem sincronização.
+- Memória de conversas entre aparelhos exige a mesma senha em ambos (não há
+  conceito de múltiplos usuários/contas — é deliberadamente single-user).
+- Na Vercel, a memória só sobrevive de verdade a um redeploy se o Postgres for
+  ativado (ver seção 6.1.1 e 9) — isso ainda não foi feito/testado em produção.
 - Anexos de imagem não sobrevivem a um reload de página (fica só uma marcação de
   texto "(imagem)" no histórico) — decisão deliberada para não estourar cota do
   localStorage com base64 grandes.
