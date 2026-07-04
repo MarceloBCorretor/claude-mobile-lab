@@ -79,7 +79,7 @@ app.post('/api/generate/image', session.requireAdmin, async (req, res) => {
 });
 
 app.post('/api/generate/video', session.requireAdmin, async (req, res) => {
-  const { modelId, prompt, aspectRatio, duration } = req.body || {};
+  const { modelId, prompt, aspectRatio, duration, resolution } = req.body || {};
   if (!modelId || typeof prompt !== 'string' || !prompt.trim()) {
     return res.status(400).json({ error: 'modelId e prompt sao obrigatorios' });
   }
@@ -90,7 +90,7 @@ app.post('/api/generate/video', session.requireAdmin, async (req, res) => {
     return res.status(503).json({ error: 'Chave da OpenRouter nao configurada. Peca ao administrador para configura-la em /admin.' });
   }
   try {
-    const job = await createVideoJob({ apiKey: config.openrouterApiKey, model: modelId, prompt, aspectRatio, duration });
+    const job = await createVideoJob({ apiKey: config.openrouterApiKey, model: modelId, prompt, aspectRatio, duration, resolution });
     res.json(job);
   } catch (err) {
     res.status(err.status || 502).json({ error: 'Falha ao iniciar geracao de video', details: err.message });

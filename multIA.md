@@ -34,19 +34,22 @@ qual optgroup do seletor de modelo ele aparece e qual API da OpenRouter é chama
 | DeepSeek V4-Pro | `deepseek/deepseek-v4-pro` | chat |
 | Qwen3 | `qwen/qwen3` | chat |
 | MiniMax M2.7 | `minimax/minimax-m2.7` | chat |
-| MiniMax Imagem | `minimax/image-01` | image |
+| Nano Banana 2 (Gemini) | `google/gemini-3.1-flash-image-preview` | image |
 | MiniMax Video | `minimax/hailuo-2.3` | video |
 
 > Os slugs foram um "melhor palpite" no momento da criação (modelos muito recentes).
 > Se o chat der erro de modelo não encontrado, confira o slug exato em
 > https://openrouter.ai/models e ajuste em `/admin`.
+>
+> **Correção de bug (2026-07-04):** o slug original de imagem, `minimax/image-01`,
+> não existe na OpenRouter (a MiniMax não tem modelo de geração de imagem lá, só
+> texto/visão) — todo teste real dava erro. Trocado por **Nano Banana 2**
+> (`google/gemini-3.1-flash-image-preview`), confirmado na coleção de modelos de
+> imagem da OpenRouter e usando a mesma chave já configurada (sem provedor novo).
 
-**Geração de imagem/vídeo:** diferente do chat de texto, cada geração tem **custo real**
-na conta OpenRouter (vídeo é bem mais caro que imagem). Usa as APIs oficiais e recentes
-da própria OpenRouter — `POST /api/v1/images` (síncrona, retorna base64) e
-`POST /api/v1/videos` (assíncrona: cria um job, o cliente faz polling em
-`GET /api/v1/videos/{id}` a cada 5s até `status:"completed"`, então usa `unsigned_urls`
-para exibir/baixar). Ver seção 6.8.
+**Geração de imagem/vídeo** agora vive em uma seção própria, separada do chat — ver
+seção 7 (Estúdio de Artes). Cada geração tem **custo real** na conta OpenRouter (vídeo
+é bem mais caro que imagem).
 
 **Recomendação de uso:** Kimi K2.6 é o que o usuário relatou responder melhor no geral,
 e é o indicado para tarefas de análise de documentos longos (PDF/anexos), já que a
@@ -71,12 +74,15 @@ src/config-store.js             # Config (chave API, modelos, senha admin) — e
 src/session.js                   # Sessão admin/chat via cookie assinado (HMAC-SHA256)
 src/openrouter.js                 # Proxy de streaming (SSE) para a API de chat da OpenRouter
 src/conversation-store.js           # Memória de conversas — Postgres (Vercel) ou data/conversations.json (Node)
+src/media-generation.js               # Chamadas para as APIs de imagem/video da OpenRouter (ver seção 7)
 public/                               # Frontend estático (tudo servido por express.static)
-  index.html                            # Chat (com login gate embutido, ver seção 6.1)
+  index.html                            # Chat, texto apenas (com login gate embutido, ver seção 6.1)
   admin.html                             # Painel administrador
-  css/style.css                           # Tema único (glass) usado por index e admin
-  js/chat.js                               # Toda a lógica do chat (ver seção 6)
+  studio.html                             # Estúdio de Artes - geração de imagem/vídeo (ver seção 7)
+  css/style.css                           # Tema único (glass) usado por index, admin e studio
+  js/chat.js                               # Toda a lógica do chat de texto (ver seção 6)
   js/admin.js                               # Lógica do painel admin
+  js/studio.js                              # Lógica do Estúdio de Artes (ver seção 7)
   js/pwa.js                                  # Registro do service worker
   manifest.webmanifest                         # Manifesto PWA (nome "MultiIA")
   service-worker.js                             # Cache do app shell, estratégia network-first
@@ -151,7 +157,7 @@ Environment Variables + Redeploy.
 ### 6.2 Layout / PWA
 - Tema **glassmorphism** escuro: blobs de gradiente desfocados no fundo, painéis
   translúcidos com `backdrop-filter: blur()`.
-- Barra de navegação inferior (estilo app nativo): Chat / Histórico / Prompts / Admin.
+- Barra de navegação inferior (estilo app nativo): Chat / Histórico / Prompts / Estúdio / Admin.
 - Sidebar de conversas é um drawer com backdrop (mobile) ou painel fixo (desktop).
 - Layout usa `100dvh` (não `100vh`) + `env(safe-area-inset-bottom)` para não cortar
   o composer atrás da barra do navegador mobile.
@@ -160,7 +166,7 @@ Environment Variables + Redeploy.
 - Service worker (`service-worker.js`) usa estratégia **network-first** (não
   cache-first) para que deploys novos apareçam sem precisar limpar cache do site.
   Versão do cache é bumped manualmente (`CACHE_NAME`) a cada mudança relevante de
-  assets — está em `multiia-shell-v7` no momento.
+  assets — está em `multiia-shell-v11` no momento.
 
 ### 6.3 Anexos no composer
 Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
@@ -229,69 +235,88 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
 - Correção: mover `.sidebar-backdrop` para dentro de `.app-shell` (mesma stacking
   context de `.sidebar`), onde o z-index volta a funcionar como esperado.
 
-### 6.8 Geração de imagem/vídeo (`src/media-generation.js`)
-- Cada modelo configurado agora tem um campo `kind`: `chat` (padrão), `image` ou
-  `video`. `store.getEnabledModels(kind)` filtra por esse campo; `GET /api/models`
-  continua retornando só os de chat (compatibilidade com o seletor de texto),
-  enquanto `GET /api/models/media` retorna imagem+vídeo para popular dois
-  `<optgroup>` extras ("🎨 Geração de imagem" / "🎬 Geração de vídeo") no mesmo
-  `<select>` de modelo do composer.
-- **Custo real:** diferente do chat de texto (que também tem custo, mas por
-  token), cada geração de imagem ou vídeo é cobrada por chamada na conta
-  OpenRouter — vídeo é significativamente mais caro que imagem. Não há limite ou
-  confirmação extra no app antes de gerar; o usuário decidiu conscientemente
-  aceitar esse custo.
-- **API usada:** os endpoints novos e oficiais da própria OpenRouter (não uma
-  API de terceiro por trás dela):
+> Geração de imagem/vídeo **não faz mais parte do chat** (removida de `chat.js`
+> depois do primeiro teste real em produção) — foi para uma seção própria, o
+> **Estúdio de Artes**. Ver seção 7.
+
+## 7. Estúdio de Artes — geração de imagem/vídeo (`public/studio.html` + `public/js/studio.js` + `src/media-generation.js`)
+
+Página separada do chat (`/studio.html`, linkada na barra inferior e no admin),
+com seu próprio login gate (mesma senha/cookie de sessão) e sua própria tela:
+alternância Imagem/Vídeo, seletor de modelo, opções específicas do tipo
+escolhido, campo de prompt e uma galeria de resultados (mais recente no topo).
+
+- **Por que uma seção separada:** no primeiro teste real em produção (imagem e
+  vídeo misturados como "modelos" dentro do seletor do chat), ficou confuso
+  visualmente e a UX de resultado (bolha de chat) era pobre comparada à de
+  código (sem preview em tela cheia, thumbnail de vídeo quebrado). Separar deixa
+  o chat de texto limpo de novo e dá espaço pra uma UX pensada pra mídia.
+- Cada modelo continua tendo o campo `kind` (`chat`/`image`/`video`) em
+  `src/config-store.js`. `GET /api/models` (chat) e `GET /api/models/media`
+  (imagem+vídeo) seguem existindo como antes; só o consumo mudou de página.
+- **Opções por tipo:**
+  - Imagem: proporção (`aspect_ratio`) — 1:1, 16:9, 9:16, 4:3, 3:4.
+  - Vídeo: resolução (768p/1080p) e duração (6s/10s). O Hailuo 2.3 só suporta
+    clipes de 10s em 768p (1080p vai até 6s) — a UI ajusta a duração
+    automaticamente pra 6s se 1080p for escolhido, pra não mandar uma
+    combinação inválida pra API.
+- **API usada** (endpoints oficiais e recentes da própria OpenRouter, mesma
+  chave do chat):
   - `POST https://openrouter.ai/api/v1/images` — síncrono. Corpo
     `{ model, prompt, aspect_ratio? }`. Resposta traz `data: [{ b64_json,
     media_type }]` (ou `url` dependendo do modelo); o servidor converte para
-    `data:<mime>;base64,...` antes de devolver ao frontend, então a imagem nunca
-    precisa de uma segunda requisição pra ser exibida.
+    `data:<mime>;base64,...` antes de devolver ao frontend.
   - `POST https://openrouter.ai/api/v1/videos` — assíncrono. Cria um job e
     retorna `{ id, status: "pending" }`. O frontend faz polling em
     `GET /api/generate/video/:jobId` → `GET https://openrouter.ai/api/v1/videos/{id}`
     a cada 5s (até ~90 tentativas, ~7.5min) até `status === "completed"`, então usa
     `unsigned_urls` para exibir (`<video controls>`) e baixar.
   - Ambos exigem sessão autenticada (`session.requireAdmin`), igual ao resto do
-    chat.
-- **Frontend (`chat.js`):** ao selecionar um modelo de imagem/vídeo no composer,
-  `sendMessage()` desvia para `sendMediaGeneration(kind, prompt)` em vez do fluxo
-  normal de streaming de texto — anexos são bloqueados nesse modo (aviso
-  explícito, já que a API de geração não aceita imagem de entrada nesses
-  modelos). A bolha do assistente mostra "Gerando imagem/vídeo..." enquanto
-  aguarda e depois é substituída (`renderMediaInBubble`) pela mídia real
-  (`<img>`/`<video class="generated-media">`) mais um botão "⬇ Abrir/Baixar" —
-  sem o botão "Copiar" de texto, que não faz sentido aqui.
-- **Modelos configurados (escopo atual, só MiniMax):** `minimax/image-01`
-  (imagem) e `minimax/hailuo-2.3` (vídeo) — ver tabela da seção 3. Editável em
-  `/admin` como qualquer outro modelo, incluindo o campo "Tipo" (Chat/Imagem/
-  Vídeo) na tabela.
-- **Ainda não verificado contra a API real:** todo o fluxo foi testado
-  localmente via Playwright com as rotas `/api/generate/image` e
-  `/api/generate/video*` mockadas (respostas fake, sem gastar crédito real). Os
-  slugs `minimax/image-01` e `minimax/hailuo-2.3`, bem como o formato exato da
-  resposta da OpenRouter para esses modelos específicos, ainda precisam ser
-  confirmados na primeira geração real em produção — se a OpenRouter usar um
-  slug ou formato de resposta diferente do documentado, será preciso ajustar
-  `src/media-generation.js` e/ou o slug no admin.
+    app.
+- **Preview em tela cheia**, mesmo padrão usado pro preview de código HTML no
+  chat (seção 6.6): clicar na imagem/vídeo gerado abre um overlay
+  `.fullscreen-preview` dentro de `#mainContent`, com cabeçalho
+  Fechar/Abrir-Baixar. Reaproveita a mesma classe CSS; o conteúdo é um
+  `<img>`/`<video>` (`.fullscreen-preview-media`, `object-fit: contain`) em vez
+  de um iframe.
+- **Resultados não são persistidos** — a galeria vive só na memória da página
+  (mesma decisão já tomada pra anexos de imagem no chat, pra não estourar cota
+  de armazenamento com base64 grandes); baixe o que quiser guardar antes de
+  recarregar a página.
+- **Modelos configurados:** Nano Banana 2 (`google/gemini-3.1-flash-image-preview`,
+  imagem) e MiniMax Video (`minimax/hailuo-2.3`, vídeo) — ver tabela da seção 3.
+  Editável em `/admin` como qualquer outro modelo.
+- **Gemini Omni Flash (vídeo) ficou de fora por enquanto:** é um modelo muito
+  recente do Google e, até onde foi possível confirmar, ainda não está
+  disponível nos modelos de vídeo da OpenRouter (que hoje cobre Seedance, Veo
+  3.1, Wan, Sora 2 Pro e Hailuo). Pra ter Omni Flash seria preciso integrar
+  direto com a API do Google AI Studio (autenticação e formato de resposta
+  diferentes, uma segunda chave de API) — decisão consciente de adiar isso até
+  a OpenRouter adicionar suporte ou o contrato da API direta do Google ser
+  validado com mais confiança.
+- **Testado só com respostas mockadas** (Playwright, sem gastar crédito real):
+  fluxo de imagem e vídeo completos, troca de tipo/modelo, ajuste automático de
+  duração ao escolher 1080p, abertura/fechamento do preview em tela cheia. O
+  slug do Nano Banana 2 e o formato exato de resposta da OpenRouter pra ele
+  ainda precisam ser confirmados na primeira geração real em produção.
 
-## 7. Painel administrador (`public/admin.html` + `public/js/admin.js`)
+## 8. Painel administrador (`public/admin.html` + `public/js/admin.js`)
 
 - Login por senha (`POST /api/admin/login`), sessão via cookie `admin_session`
   assinado com HMAC (`src/session.js`), válido por 12h.
 - Mostra se a chave da OpenRouter está configurada (e a origem: variável de
   ambiente ou arquivo local) — nunca expõe o valor da chave já salva.
 - Tabela de modelos: habilitar/desabilitar, editar slug e nome exibido, escolher
-  o **Tipo** (Chat / Imagem / Vídeo — ver seção 6.8), adicionar ou remover
+  o **Tipo** (Chat / Imagem / Vídeo — ver seção 7), adicionar ou remover
   linhas.
 - Troca de senha do admin (exige senha atual).
 - Banner de aviso diferenciado por plataforma: na Vercel, deixa claro que
   alterações feitas ali só duram até o próximo cold start/deploy (recomenda usar
   Environment Variables); em host Node persistente, confirma que grava em
   `data/runtime-config.json`.
+- Link direto pro Estúdio de Artes (seção 7) ao lado do "Voltar ao chat".
 
-## 8. Segurança
+## 9. Segurança
 
 - Senha do admin nunca é armazenada em texto puro — hash PBKDF2 (100k iterações,
   salt aleatório) via `crypto` nativo do Node.
@@ -304,7 +329,7 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
 - Nenhuma chave (API key, senha) fica hardcoded no repositório — tudo vem de
   variáveis de ambiente ou é digitado pelo usuário via `/admin`.
 
-## 9. Deploy
+## 10. Deploy
 
 ### Vercel (ambiente principal, já configurado)
 - Projeto **já está conectado ao GitHub** via integração nativa da Vercel
@@ -316,7 +341,9 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
 - Variáveis de ambiente já configuradas (ver seção 5).
 - **Pendente:** ativar Postgres (Storage → Create Database) pra memória de
   conversas persistir de verdade entre deploys — sem isso, funciona só durante o
-  tempo de vida de cada instância serverless (ver seção 6.1.1).
+  tempo de vida de cada instância serverless (ver seção 6.1.1). O Estúdio de
+  Artes (seção 7) não usa esse Postgres — os resultados de imagem/vídeo não são
+  persistidos de propósito.
 - **Importante:** este projeto foi desenvolvido a partir de um ambiente sandbox
   cujo proxy de rede bloqueia acesso a `vercel.com`/`api.vercel.com` por política —
   ou seja, uma IA trabalhando neste repo a partir de um ambiente parecido **não
@@ -331,7 +358,7 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
   `data/runtime-config.json`.
 - Ver instruções completas no `README.md` do repositório.
 
-## 10. Histórico de Pull Requests (o que foi entregue em cada um)
+## 11. Histórico de Pull Requests (o que foi entregue em cada um)
 
 | PR | Título | Conteúdo principal |
 |---|---|---|
@@ -343,14 +370,15 @@ Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
 | #7 | OCR fallback for scanned PDFs | tesseract.js self-hosted + traineddata em português, fallback automático para PDFs sem texto |
 | #8 | Docs + bug fixes + cross-device conversation memory | `multIA.md`, correção do z-index do backdrop (Novo Chat destravado), preview de HTML em tela cheia, `src/conversation-store.js` (Postgres/arquivo), login obrigatório no chat |
 | #9 | WhatsApp preset + reply copy button + study templates | Preset "Revisar p/ WhatsApp", botão Copiar em toda resposta, 6 templates de técnica de estudo no seletor de prompts |
-| #10 (a caminho) | Image/video generation via OpenRouter | `src/media-generation.js`, campo `kind` nos modelos, endpoints `/api/generate/image` e `/api/generate/video`, UI de mídia gerada no chat (só MiniMax por enquanto) |
+| #10 | Image/video generation via OpenRouter | `src/media-generation.js`, campo `kind` nos modelos, endpoints `/api/generate/image` e `/api/generate/video`, UI de mídia gerada no chat (só MiniMax por enquanto) |
+| #11 (a caminho) | Fix imagem quebrada + Estúdio de Artes separado | Troca `minimax/image-01` (inexistente) por Nano Banana 2 via OpenRouter, opções de resolução/duração pro vídeo, geração de imagem/vídeo removida do chat e movida pra `/studio.html` com preview em tela cheia |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
 nova rodada de mudanças (padrão adotado neste projeto: nunca empilhar commits
 sobre um PR já mesclado).
 
-## 11. Limitações conhecidas / possíveis próximos passos
+## 12. Limitações conhecidas / possíveis próximos passos
 
 - Memória de conversas entre aparelhos exige a mesma senha em ambos (não há
   conceito de múltiplos usuários/contas — é deliberadamente single-user).
@@ -370,7 +398,13 @@ sobre um PR já mesclado).
 - Nenhum teste automatizado (unit/e2e) foi deixado no repositório — toda a
   verificação até agora foi manual/exploratória (Playwright ad-hoc, descartado
   após uso).
-- Geração de imagem/vídeo (seção 6.8) só foi testada com respostas mockadas —
-  a primeira geração real em produção pode revelar que o slug ou o formato de
-  resposta da OpenRouter para `minimax/image-01`/`minimax/hailuo-2.3` é
-  diferente do documentado, exigindo ajuste em `src/media-generation.js`.
+- Geração de imagem/vídeo (seção 7) só foi testada com respostas mockadas — o
+  slug e formato de resposta do Nano Banana 2 (`google/gemini-3.1-flash-image-preview`)
+  ainda precisam ser confirmados na primeira geração real em produção.
+- Resultados do Estúdio de Artes não são persistidos entre reloads (mesma
+  decisão de não guardar base64 grandes já aplicada a anexos de imagem no chat)
+  — o usuário precisa baixar o que quiser guardar.
+- Gemini Omni Flash (vídeo) ficou de fora por não estar disponível via
+  OpenRouter ainda — integrá-lo exigiria uma segunda chave/API direta do Google
+  AI Studio, adiado até ter mais confiança no contrato dessa API ou suporte via
+  OpenRouter.
