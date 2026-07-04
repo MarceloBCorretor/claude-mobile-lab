@@ -1,6 +1,7 @@
 (() => {
   const STORAGE_KEY = 'multiia_conversations_v1';
-  const MAX_TEXT_CHARS = 6000;
+  const MAX_TEXT_CHARS = 20000;
+  const MAX_PDF_PAGES = 40;
   const MAX_FILE_BYTES = 6 * 1024 * 1024;
   const TEXT_EXTENSIONS = ['.txt', '.md', '.csv', '.json'];
 
@@ -312,6 +313,44 @@
     });
   }
 
+  function truncateText(text) {
+    if (text.length <= MAX_TEXT_CHARS) return { text, truncated: false };
+    return { text: text.slice(0, MAX_TEXT_CHARS), truncated: true };
+  }
+
+  // --- PDF text extraction (lazy-loaded pdf.js, no external CDN) ----------
+
+  let pdfjsPromise = null;
+  function loadPdfJs() {
+    if (!pdfjsPromise) {
+      pdfjsPromise = import('/js/vendor/pdfjs/pdf.min.mjs').then((mod) => {
+        mod.GlobalWorkerOptions.workerSrc = '/js/vendor/pdfjs/pdf.worker.min.mjs';
+        return mod;
+      });
+    }
+    return pdfjsPromise;
+  }
+
+  async function extractPdfText(file) {
+    const pdfjsLib = await loadPdfJs();
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({
+      data: buf,
+      cMapUrl: '/js/vendor/pdfjs/cmaps/',
+      cMapPacked: true
+    }).promise;
+
+    const pageCount = Math.min(doc.numPages, MAX_PDF_PAGES);
+    let text = '';
+    for (let i = 1; i <= pageCount; i++) {
+      const page = await doc.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map((it) => it.str).join(' ') + '\n\n';
+      if (text.length > MAX_TEXT_CHARS * 1.5) break;
+    }
+    return { text: text.trim(), totalPages: doc.numPages, readPages: pageCount };
+  }
+
   async function handleFiles(fileList) {
     for (const file of Array.from(fileList)) {
       if (file.size > MAX_FILE_BYTES) {
@@ -322,19 +361,38 @@
       if (file.type.startsWith('image/')) {
         const dataUrl = await readFileAsDataUrl(file);
         pendingAttachments.push({ type: 'image', name: file.name, dataUrl });
+        renderAttachments();
       } else if (TEXT_EXTENSIONS.includes(ext) || file.type.startsWith('text/')) {
-        let text = await readFileAsText(file);
-        let truncated = false;
-        if (text.length > MAX_TEXT_CHARS) {
-          text = text.slice(0, MAX_TEXT_CHARS);
-          truncated = true;
-        }
+        const { text, truncated } = truncateText(await readFileAsText(file));
         pendingAttachments.push({ type: 'text', name: file.name, content: text, truncated });
+        renderAttachments();
+      } else if (ext === '.pdf' || file.type === 'application/pdf') {
+        const placeholder = { type: 'pdf', name: file.name, status: 'loading' };
+        pendingAttachments.push(placeholder);
+        renderAttachments();
+        try {
+          const { text: rawText, totalPages, readPages } = await extractPdfText(file);
+          if (!pendingAttachments.includes(placeholder)) continue;
+          if (!rawText) {
+            pendingAttachments.splice(pendingAttachments.indexOf(placeholder), 1);
+            showBanner('warn', `"${file.name}" nao tem texto selecionavel (provavelmente e um PDF escaneado/imagem). Leitura por OCR ainda nao e suportada.`);
+          } else {
+            const { text, truncated } = truncateText(rawText);
+            placeholder.status = 'ready';
+            placeholder.content = text;
+            placeholder.truncated = truncated || readPages < totalPages;
+          }
+        } catch (err) {
+          if (pendingAttachments.includes(placeholder)) {
+            pendingAttachments.splice(pendingAttachments.indexOf(placeholder), 1);
+          }
+          showBanner('warn', `Nao foi possivel ler "${file.name}" (PDF protegido ou corrompido).`);
+        }
+        renderAttachments();
       } else {
-        showBanner('warn', `Leitura de "${file.name}" ainda nao e suportada (apenas imagens e arquivos de texto por enquanto).`);
+        showBanner('warn', `Leitura de "${file.name}" ainda nao e suportada (imagens, PDF e arquivos de texto por enquanto).`);
       }
     }
-    renderAttachments();
   }
 
   function renderAttachments() {
@@ -342,10 +400,11 @@
     pendingAttachments.forEach((att, idx) => {
       const chip = document.createElement('div');
       chip.className = 'attachment-chip';
-      const preview = att.type === 'image'
-        ? `<img src="${att.dataUrl}" alt="" />`
-        : `<span class="chip-icon">📄</span>`;
-      chip.innerHTML = `${preview}<span class="name">${escapeHtml(att.name)}</span><button title="Remover">✕</button>`;
+      let preview = `<span class="chip-icon">📄</span>`;
+      if (att.type === 'image') preview = `<img src="${att.dataUrl}" alt="" />`;
+      else if (att.type === 'pdf') preview = `<span class="chip-icon">${att.status === 'loading' ? '⏳' : '📕'}</span>`;
+      const label = att.type === 'pdf' && att.status === 'loading' ? `${att.name} (lendo...)` : att.name;
+      chip.innerHTML = `${preview}<span class="name">${escapeHtml(label)}</span><button title="Remover">✕</button>`;
       chip.querySelector('button').addEventListener('click', () => {
         pendingAttachments.splice(idx, 1);
         renderAttachments();
@@ -361,7 +420,7 @@
   });
 
   function buildApiContent(text) {
-    const textFiles = pendingAttachments.filter((a) => a.type === 'text');
+    const textFiles = pendingAttachments.filter((a) => a.type === 'text' || (a.type === 'pdf' && a.status === 'ready'));
     const imageFiles = pendingAttachments.filter((a) => a.type === 'image');
 
     let combinedText = text;
@@ -379,7 +438,8 @@
   function buildDisplayContent(text) {
     let display = text;
     pendingAttachments.forEach((a) => {
-      display += `\n📎 ${a.name}${a.type === 'image' ? ' (imagem)' : ' (arquivo de texto)'}`;
+      const label = a.type === 'image' ? 'imagem' : a.type === 'pdf' ? 'PDF' : 'arquivo de texto';
+      display += `\n📎 ${a.name} (${label})`;
     });
     return display;
   }
@@ -389,6 +449,10 @@
   async function sendMessage() {
     const text = promptInput.value.trim();
     if ((!text && !pendingAttachments.length) || sendBtn.disabled) return;
+    if (pendingAttachments.some((a) => a.status === 'loading')) {
+      showBanner('warn', 'Aguarde a leitura do PDF terminar antes de enviar.');
+      return;
+    }
     const conv = getActive();
 
     const apiContent = buildApiContent(text);
