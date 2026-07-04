@@ -264,15 +264,34 @@ select:focus, input:focus, textarea:focus {
 }
 .msg.user .avatar { background: var(--accent); }
 .msg.assistant .avatar { background: var(--bg-3); }
+.msg .bubble-col {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .msg .bubble {
   padding-top: 5px;
   line-height: 1.6;
   font-size: 16.5px;
   white-space: pre-wrap;
   word-break: break-word;
-  min-width: 0;
-  flex: 1;
 }
+
+.msg-actions { display: flex; }
+.msg-copy-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+.msg-copy-btn:hover { background: var(--bg-3); color: var(--text); }
 .msg .bubble.pending::after {
   content: '▍';
   animation: blink 1s step-start infinite;

@@ -9,6 +9,15 @@
   const PROMPT_PRESETS = [
     { id: '', label: 'Selecionar um Prompt', system: '' },
     { id: 'assistant', label: 'Assistente geral', system: 'Voce e um assistente util, direto e honesto.' },
+    {
+      id: 'whatsapp',
+      label: 'Revisar p/ WhatsApp',
+      system: 'Voce revisa mensagens ditadas por voz (transcricao de audio) para envio pelo WhatsApp. '
+        + 'Corrija gramatica, pontuacao, acentuacao e a divisao em paragrafos curtos e naturais, removendo '
+        + 'repeticoes e hesitacoes tipicas de fala, mas mantendo o tom, o sentido e o estilo pessoal de quem '
+        + 'escreveu. Nao adicione saudacoes, explicacoes, comentarios ou perguntas de volta - responda '
+        + 'apenas com o texto final da mensagem, ja pronto para ser copiado e colado diretamente no WhatsApp.'
+    },
     { id: 'dev', label: 'Programador', system: 'Voce e um engenheiro de software senior. Responda com codigo claro e explicacoes objetivas.' },
     { id: 'translator', label: 'Tradutor PT<->EN', system: 'Voce traduz textos entre portugues e ingles mantendo o tom original.' },
     { id: 'copy', label: 'Redator publicitario', system: 'Voce e um redator publicitario criativo, focado em textos persuasivos e curtos.' }
@@ -112,10 +121,19 @@
   function appendMessageEl(role, content) {
     const wrap = document.createElement('div');
     wrap.className = `msg ${role}`;
-    wrap.innerHTML = `<div class="avatar">${role === 'user' ? '🙂' : '🤖'}</div><div class="bubble"></div>`;
+    wrap.innerHTML = `<div class="avatar">${role === 'user' ? '🙂' : '🤖'}</div><div class="bubble-col"><div class="bubble"></div></div>`;
     const bubble = wrap.querySelector('.bubble');
+    bubble.dataset.rawText = content;
     if (role === 'assistant') {
       renderRichContent(bubble, content);
+      const actions = document.createElement('div');
+      actions.className = 'msg-actions';
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'msg-copy-btn';
+      copyBtn.innerHTML = '📋 <span>Copiar</span>';
+      copyBtn.addEventListener('click', () => copyToClipboard(bubble.dataset.rawText, copyBtn, '📋 <span>Copiar</span>'));
+      actions.appendChild(copyBtn);
+      wrap.querySelector('.bubble-col').appendChild(actions);
     } else {
       bubble.textContent = content;
     }
@@ -633,6 +651,7 @@
         }
       }
       bubble.classList.remove('pending');
+      bubble.dataset.rawText = full || '(sem resposta)';
       renderRichContent(bubble, full || '(sem resposta)');
       conv.messages.push({ role: 'assistant', content: full || '(sem resposta)' });
       persist();
