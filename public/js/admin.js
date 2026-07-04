@@ -29,12 +29,20 @@
     models.forEach((m) => addModelRow(m));
   }
 
-  function addModelRow(model = { id: '', label: '', enabled: true }) {
+  function addModelRow(model = { id: '', label: '', enabled: true, kind: 'chat' }) {
     const tr = document.createElement('tr');
+    const kind = model.kind || 'chat';
     tr.innerHTML = `
       <td><input type="checkbox" ${model.enabled ? 'checked' : ''} class="m-enabled" /></td>
       <td><input type="text" class="m-id" value="${model.id.replace(/"/g, '&quot;')}" placeholder="ex: z-ai/glm-5.2" /></td>
       <td><input type="text" class="m-label" value="${model.label.replace(/"/g, '&quot;')}" placeholder="Nome exibido" /></td>
+      <td>
+        <select class="m-kind">
+          <option value="chat" ${kind === 'chat' ? 'selected' : ''}>Chat</option>
+          <option value="image" ${kind === 'image' ? 'selected' : ''}>Imagem</option>
+          <option value="video" ${kind === 'video' ? 'selected' : ''}>Video</option>
+        </select>
+      </td>
       <td><button class="rm-btn" title="Remover">✕</button></td>
     `;
     tr.querySelector('.rm-btn').addEventListener('click', () => tr.remove());
@@ -45,7 +53,8 @@
     return Array.from(modelsBody.querySelectorAll('tr')).map((tr) => ({
       id: tr.querySelector('.m-id').value.trim(),
       label: tr.querySelector('.m-label').value.trim(),
-      enabled: tr.querySelector('.m-enabled').checked
+      enabled: tr.querySelector('.m-enabled').checked,
+      kind: tr.querySelector('.m-kind').value
     })).filter((m) => m.id);
   }
 

@@ -92,6 +92,8 @@
   const loginFeedback = document.getElementById('loginFeedback');
 
   let models = [];
+  let mediaModels = [];
+  let kindById = {};
   let conversations = [];
   let activeId = null;
   let pendingAttachments = [];
@@ -158,18 +160,24 @@
       chatInner.appendChild(emptyState);
       return;
     }
-    conv.messages.forEach((m) => appendMessageEl(m.role, m.content));
+    conv.messages.forEach((m) => appendMessageEl(m.role, m.content, m.media));
     chatInner.scrollTop = chatInner.scrollHeight;
   }
 
-  function appendMessageEl(role, content) {
+  function appendMessageEl(role, content, media) {
     const wrap = document.createElement('div');
     wrap.className = `msg ${role}`;
     wrap.innerHTML = `<div class="avatar">${role === 'user' ? '🙂' : '🤖'}</div><div class="bubble-col"><div class="bubble"></div></div>`;
     const bubble = wrap.querySelector('.bubble');
     bubble.dataset.rawText = content;
-    if (role === 'assistant') {
+    if (media) {
+      renderMediaInBubble(bubble, media);
+    } else if (role === 'assistant') {
       renderRichContent(bubble, content);
+    } else {
+      bubble.textContent = content;
+    }
+    if (role === 'assistant' && !media) {
       const actions = document.createElement('div');
       actions.className = 'msg-actions';
       const copyBtn = document.createElement('button');
@@ -178,12 +186,42 @@
       copyBtn.addEventListener('click', () => copyToClipboard(bubble.dataset.rawText, copyBtn, '📋 <span>Copiar</span>'));
       actions.appendChild(copyBtn);
       wrap.querySelector('.bubble-col').appendChild(actions);
-    } else {
-      bubble.textContent = content;
     }
     chatInner.appendChild(wrap);
     document.querySelector('.chat-scroll').scrollTop = 999999;
     return bubble;
+  }
+
+  // --- Imagem/video gerados: render inline com botao de abrir/baixar ------
+
+  function renderMediaInBubble(bubble, media) {
+    bubble.innerHTML = '';
+    bubble.classList.remove('pending');
+    const staleActions = bubble.closest('.bubble-col')?.querySelector('.msg-actions');
+    if (staleActions) staleActions.remove();
+    (media.urls || []).forEach((url, idx) => {
+      const el = document.createElement(media.type === 'video' ? 'video' : 'img');
+      el.src = url;
+      el.className = 'generated-media';
+      if (media.type === 'video') { el.controls = true; el.playsInline = true; }
+      bubble.appendChild(el);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.className = 'code-action-btn';
+      a.download = `multiia-${media.type}-${idx + 1}.${media.type === 'video' ? 'mp4' : 'png'}`;
+      a.innerHTML = '⬇ <span>Abrir/Baixar</span>';
+      const wrap = document.createElement('div');
+      wrap.className = 'media-actions';
+      wrap.appendChild(a);
+      bubble.appendChild(wrap);
+    });
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   // --- Code block rendering (copy / preview / download) -------------------
@@ -344,14 +382,35 @@
 
   async function loadModels() {
     try {
-      const res = await fetch('/api/models');
-      const data = await res.json();
-      models = data.models || [];
-      modelSelect.innerHTML = models.map((m) => `<option value="${m.id}">${escapeHtml(m.label)}</option>`).join('');
-      if (!models.length) {
+      const [chatRes, mediaRes] = await Promise.all([
+        fetch('/api/models'),
+        fetch('/api/models/media')
+      ]);
+      const chatData = await chatRes.json();
+      const mediaData = await mediaRes.json().catch(() => ({ models: [] }));
+      models = chatData.models || [];
+      mediaModels = mediaData.models || [];
+
+      kindById = {};
+      models.forEach((m) => { kindById[m.id] = 'chat'; });
+      mediaModels.forEach((m) => { kindById[m.id] = m.kind; });
+
+      const imageModels = mediaModels.filter((m) => m.kind === 'image');
+      const videoModels = mediaModels.filter((m) => m.kind === 'video');
+
+      let html = models.map((m) => `<option value="${m.id}">${escapeHtml(m.label)}</option>`).join('');
+      if (imageModels.length) {
+        html += `<optgroup label="🎨 Geracao de imagem">${imageModels.map((m) => `<option value="${m.id}">${escapeHtml(m.label)}</option>`).join('')}</optgroup>`;
+      }
+      if (videoModels.length) {
+        html += `<optgroup label="🎬 Geracao de video">${videoModels.map((m) => `<option value="${m.id}">${escapeHtml(m.label)}</option>`).join('')}</optgroup>`;
+      }
+      modelSelect.innerHTML = html;
+
+      if (!models.length && !mediaModels.length) {
         showBanner('warn', 'Nenhum modelo habilitado. Configure em /admin.');
       } else {
-        showBanner('ok', `${models.length} modelo(s) disponivel(is) via OpenRouter`);
+        showBanner('ok', `${models.length} modelo(s) de chat e ${mediaModels.length} de imagem/video via OpenRouter`);
       }
     } catch {
       showBanner('warn', 'Nao foi possivel carregar a lista de modelos.');
@@ -634,11 +693,97 @@
 
   // --- Sending ------------------------------------------------------------
 
+  async function sendMediaGeneration(kind, prompt) {
+    const conv = getActive();
+    if (conv.messages.length === 0) conv.title = prompt.slice(0, 40);
+    conv.messages.push({ role: 'user', content: prompt });
+    persist();
+    renderSidebar();
+    renderMessages();
+    promptInput.value = '';
+    autoResize();
+
+    const modelId = modelSelect.value;
+    const bubble = appendMessageEl(
+      'assistant',
+      kind === 'video' ? 'Gerando video... isso pode levar alguns minutos.' : 'Gerando imagem...'
+    );
+    bubble.classList.add('pending');
+    sendBtn.disabled = true;
+
+    try {
+      if (kind === 'image') {
+        const res = await fetch('/api/generate/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ modelId, prompt })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+        if (!data.images || !data.images.length) throw new Error('Nenhuma imagem retornada.');
+        const media = { type: 'image', urls: data.images };
+        renderMediaInBubble(bubble, media);
+        bubble.dataset.rawText = '';
+        conv.messages.push({ role: 'assistant', content: '', media });
+        persist();
+      } else {
+        const startRes = await fetch('/api/generate/video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ modelId, prompt })
+        });
+        const job = await startRes.json();
+        if (!startRes.ok) throw new Error(job.error || `Erro ${startRes.status}`);
+
+        let status = job.status;
+        let unsignedUrls = [];
+        const maxAttempts = 90;
+        for (let i = 0; i < maxAttempts; i++) {
+          if (status === 'completed' || status === 'failed') break;
+          await sleep(5000);
+          const pollRes = await fetch(`/api/generate/video/${job.id}`);
+          const pollData = await pollRes.json();
+          if (!pollRes.ok) throw new Error(pollData.error || `Erro ${pollRes.status}`);
+          status = pollData.status;
+          unsignedUrls = pollData.unsignedUrls || [];
+          bubble.textContent = `Gerando video... status: ${status} (tentativa ${i + 1})`;
+        }
+        if (status !== 'completed' || !unsignedUrls.length) {
+          throw new Error(status === 'failed' ? 'A geracao do video falhou.' : 'O video nao ficou pronto a tempo.');
+        }
+        const media = { type: 'video', urls: unsignedUrls };
+        renderMediaInBubble(bubble, media);
+        bubble.dataset.rawText = '';
+        conv.messages.push({ role: 'assistant', content: '', media });
+        persist();
+      }
+    } catch (err) {
+      bubble.classList.remove('pending');
+      bubble.textContent = `Erro: ${err.message}`;
+      bubble.style.color = 'var(--danger)';
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+
   async function sendMessage() {
     const text = promptInput.value.trim();
     if ((!text && !pendingAttachments.length) || sendBtn.disabled) return;
     if (pendingAttachments.some((a) => a.status === 'loading' || a.status === 'ocr')) {
       showBanner('warn', 'Aguarde a leitura do PDF (ou o OCR) terminar antes de enviar.');
+      return;
+    }
+    const mediaKind = kindById[modelSelect.value];
+    if (mediaKind === 'image' || mediaKind === 'video') {
+      if (!text) {
+        showBanner('warn', 'Digite uma descricao para gerar.');
+        return;
+      }
+      if (pendingAttachments.length) {
+        showBanner('warn', 'Anexos nao sao usados na geracao de imagem/video - remova-os ou troque para um modelo de chat.');
+        return;
+      }
+      await sendMediaGeneration(mediaKind, text);
       return;
     }
     const conv = getActive();
