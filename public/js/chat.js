@@ -2,6 +2,8 @@
   const STORAGE_KEY = 'multiia_conversations_v1';
   const MAX_TEXT_CHARS = 20000;
   const MAX_PDF_PAGES = 40;
+  const MAX_OCR_PAGES = 10;
+  const MIN_TEXT_LAYER_CHARS = 20;
   const MAX_FILE_BYTES = 6 * 1024 * 1024;
   const TEXT_EXTENSIONS = ['.txt', '.md', '.csv', '.json'];
 
@@ -351,6 +353,50 @@
     return { text: text.trim(), totalPages: doc.numPages, readPages: pageCount };
   }
 
+  // --- OCR fallback for scanned/image-only PDFs (lazy-loaded tesseract.js) -
+
+  let ocrWorkerPromise = null;
+  function getOcrWorker() {
+    if (!ocrWorkerPromise) {
+      ocrWorkerPromise = import('/js/vendor/tesseract/tesseract.esm.min.js').then(({ default: Tesseract }) =>
+        Tesseract.createWorker('por', 1, {
+          workerPath: '/js/vendor/tesseract/worker.min.js',
+          corePath: '/js/vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
+          langPath: '/js/vendor/tesseract/lang'
+        })
+      );
+    }
+    return ocrWorkerPromise;
+  }
+
+  async function ocrPdf(file, onProgress) {
+    const pdfjsLib = await loadPdfJs();
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({
+      data: buf,
+      cMapUrl: '/js/vendor/pdfjs/cmaps/',
+      cMapPacked: true
+    }).promise;
+
+    const pageCount = Math.min(doc.numPages, MAX_OCR_PAGES);
+    const worker = await getOcrWorker();
+    let text = '';
+    for (let i = 1; i <= pageCount; i++) {
+      onProgress(i, pageCount);
+      const page = await doc.getPage(i);
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const { data } = await worker.recognize(canvas);
+      text += `${data.text}\n\n`;
+      if (text.length > MAX_TEXT_CHARS * 1.5) break;
+    }
+    return { text: text.trim(), totalPages: doc.numPages, readPages: pageCount };
+  }
+
   async function handleFiles(fileList) {
     for (const file of Array.from(fileList)) {
       if (file.size > MAX_FILE_BYTES) {
@@ -373,20 +419,43 @@
         try {
           const { text: rawText, totalPages, readPages } = await extractPdfText(file);
           if (!pendingAttachments.includes(placeholder)) continue;
-          if (!rawText) {
-            pendingAttachments.splice(pendingAttachments.indexOf(placeholder), 1);
-            showBanner('warn', `"${file.name}" nao tem texto selecionavel (provavelmente e um PDF escaneado/imagem). Leitura por OCR ainda nao e suportada.`);
-          } else {
+
+          if (rawText && rawText.length >= MIN_TEXT_LAYER_CHARS) {
             const { text, truncated } = truncateText(rawText);
             placeholder.status = 'ready';
             placeholder.content = text;
             placeholder.truncated = truncated || readPages < totalPages;
+            renderAttachments();
+            continue;
+          }
+
+          // No (usable) text layer - probably a scanned/image-only PDF. Fall back to OCR.
+          placeholder.status = 'ocr';
+          placeholder.ocrProgress = 'preparando...';
+          renderAttachments();
+
+          const { text: ocrText, totalPages: ocrTotal, readPages: ocrRead } = await ocrPdf(file, (page, total) => {
+            if (!pendingAttachments.includes(placeholder)) return;
+            placeholder.ocrProgress = `${page}/${total}`;
+            renderAttachments();
+          });
+          if (!pendingAttachments.includes(placeholder)) continue;
+
+          if (!ocrText || ocrText.length < 5) {
+            pendingAttachments.splice(pendingAttachments.indexOf(placeholder), 1);
+            showBanner('warn', `Nao foi possivel extrair texto de "${file.name}" nem por OCR.`);
+          } else {
+            const { text, truncated } = truncateText(ocrText);
+            placeholder.status = 'ready';
+            placeholder.content = text;
+            placeholder.truncated = truncated || ocrRead < ocrTotal;
+            placeholder.viaOcr = true;
           }
         } catch (err) {
           if (pendingAttachments.includes(placeholder)) {
             pendingAttachments.splice(pendingAttachments.indexOf(placeholder), 1);
           }
-          showBanner('warn', `Nao foi possivel ler "${file.name}" (PDF protegido ou corrompido).`);
+          showBanner('warn', `Nao foi possivel ler "${file.name}" (PDF protegido, corrompido, ou OCR indisponivel neste navegador).`);
         }
         renderAttachments();
       } else {
@@ -402,8 +471,13 @@
       chip.className = 'attachment-chip';
       let preview = `<span class="chip-icon">📄</span>`;
       if (att.type === 'image') preview = `<img src="${att.dataUrl}" alt="" />`;
-      else if (att.type === 'pdf') preview = `<span class="chip-icon">${att.status === 'loading' ? '⏳' : '📕'}</span>`;
-      const label = att.type === 'pdf' && att.status === 'loading' ? `${att.name} (lendo...)` : att.name;
+      else if (att.type === 'pdf') preview = `<span class="chip-icon">${att.status === 'ready' ? '📕' : '⏳'}</span>`;
+      let label = att.name;
+      if (att.type === 'pdf') {
+        if (att.status === 'loading') label = `${att.name} (lendo...)`;
+        else if (att.status === 'ocr') label = `${att.name} (OCR ${att.ocrProgress || ''})`;
+        else if (att.viaOcr) label = `${att.name} (via OCR)`;
+      }
       chip.innerHTML = `${preview}<span class="name">${escapeHtml(label)}</span><button title="Remover">✕</button>`;
       chip.querySelector('button').addEventListener('click', () => {
         pendingAttachments.splice(idx, 1);
@@ -449,8 +523,8 @@
   async function sendMessage() {
     const text = promptInput.value.trim();
     if ((!text && !pendingAttachments.length) || sendBtn.disabled) return;
-    if (pendingAttachments.some((a) => a.status === 'loading')) {
-      showBanner('warn', 'Aguarde a leitura do PDF terminar antes de enviar.');
+    if (pendingAttachments.some((a) => a.status === 'loading' || a.status === 'ocr')) {
+      showBanner('warn', 'Aguarde a leitura do PDF (ou o OCR) terminar antes de enviar.');
       return;
     }
     const conv = getActive();
