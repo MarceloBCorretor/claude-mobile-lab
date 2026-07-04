@@ -23,6 +23,50 @@
     { id: 'copy', label: 'Redator publicitario', system: 'Voce e um redator publicitario criativo, focado em textos persuasivos e curtos.' }
   ];
 
+  // Modelos prontos para colar como a propria mensagem (com [tema] para
+  // substituir), no estilo "Cole isto na IA" - nao definem um system prompt,
+  // o texto inserido ja carrega a instrucao completa.
+  const STUDY_TEMPLATES = [
+    {
+      id: 'study-20h',
+      label: '📚 Aprenda em 20h',
+      template: 'Preciso aprender [tema] rapidamente. Crie um plano de 20 horas focado nos 20% dos '
+        + 'conceitos que geram 80% dos resultados. Divida em 10 sessoes de 2 horas, com os melhores '
+        + 'recursos e uma revisao de 15 minutos ao final de cada uma.'
+    },
+    {
+      id: 'study-1page',
+      label: '📄 Folha de 1 pagina',
+      template: 'Resuma os principais conceitos de [tema] em uma unica pagina. Use topicos, diagramas e '
+        + 'exemplos para que eu possa revisa-los em 5 minutos.'
+    },
+    {
+      id: 'study-quiz',
+      label: '🧠 Teste ate dominar',
+      template: 'Acabei de estudar [tema]. Faca-me 10 perguntas cada vez mais dificeis para avaliar o que '
+        + 'eu entendi. Depois de cada resposta, de-me uma nota e explique no que eu errei.'
+    },
+    {
+      id: 'study-ladder',
+      label: '🪜 Escada de aprendizado',
+      template: 'Divida [tema] em 5 niveis de dificuldade. Mostre-me como passar do Nivel 1 (iniciante) ao '
+        + 'Nivel 5 (avancado), com um objetivo claro em cada etapa.'
+    },
+    {
+      id: 'study-resources',
+      label: '🔎 Melhores recursos',
+      template: 'Faca uma lista dos 5 melhores recursos (livros, videos, cursos ou especialistas) para '
+        + 'aprender [tema] rapidamente e explique por que cada um merece meu tempo.'
+    },
+    {
+      id: 'study-feynman',
+      label: '🗣️ Tecnica Feynman',
+      template: 'Explique [tema] da forma mais simples possivel. Depois, faca com que eu o explique com '
+        + 'minhas proprias palavras. Aponte meus erros, ensine novamente o que eu nao entendi e repita o '
+        + 'processo ate que eu consiga explica-lo sozinho.'
+    }
+  ];
+
   const modelSelect = document.getElementById('modelSelect');
   const promptSelect = document.getElementById('promptSelect');
   const mainContent = document.getElementById('mainContent');
@@ -319,7 +363,21 @@
     statusBanner.innerHTML = `<span class="status-dot ${kind === 'warn' ? 'off' : ''}"></span>${escapeHtml(text)}`;
   }
 
-  promptSelect.innerHTML = PROMPT_PRESETS.map((p) => `<option value="${p.id}">${escapeHtml(p.label)}</option>`).join('');
+  promptSelect.innerHTML = PROMPT_PRESETS.map((p) => `<option value="${p.id}">${escapeHtml(p.label)}</option>`).join('')
+    + `<optgroup label="Tecnicas de estudo (aprenda qualquer coisa)">`
+    + STUDY_TEMPLATES.map((t) => `<option value="${t.id}">${escapeHtml(t.label)}</option>`).join('')
+    + `</optgroup>`;
+
+  promptSelect.addEventListener('change', () => {
+    const template = STUDY_TEMPLATES.find((t) => t.id === promptSelect.value);
+    if (!template) return;
+    promptInput.value = template.template;
+    autoResize();
+    promptInput.focus();
+    const idx = promptInput.value.indexOf('[tema]');
+    if (idx !== -1) promptInput.setSelectionRange(idx, idx + '[tema]'.length);
+    promptSelect.value = '';
+  });
 
   // --- Sidebar drawer -------------------------------------------------
 
