@@ -34,7 +34,8 @@ qual optgroup do seletor de modelo ele aparece e qual API da OpenRouter é chama
 | DeepSeek V4-Pro | `deepseek/deepseek-v4-pro` | chat |
 | Qwen3 | `qwen/qwen3` | chat |
 | MiniMax M2.7 | `minimax/minimax-m2.7` | chat |
-| Nano Banana 2 (Gemini) | `google/gemini-3.1-flash-image-preview` | image |
+| Nano Banana 2 Lite (rápido/barato) | `google/gemini-3.1-flash-lite-image` | image |
+| Nano Banana 2 (qualidade) | `google/gemini-3.1-flash-image-preview` | image |
 | MiniMax Video | `minimax/hailuo-2.3` | video |
 
 > Os slugs foram um "melhor palpite" no momento da criação (modelos muito recentes).
@@ -46,6 +47,13 @@ qual optgroup do seletor de modelo ele aparece e qual API da OpenRouter é chama
 > texto/visão) — todo teste real dava erro. Trocado por **Nano Banana 2**
 > (`google/gemini-3.1-flash-image-preview`), confirmado na coleção de modelos de
 > imagem da OpenRouter e usando a mesma chave já configurada (sem provedor novo).
+> Em seguida foi adicionado o **Nano Banana 2 Lite** (`google/gemini-3.1-flash-lite-image`)
+> como segunda opção de imagem, listado primeiro no seletor por ser a escolha
+> padrão recomendada: metade do preço ($0,25/$1,50 por 1M tokens vs $0,50/$3,00
+> da versão cheia) e ~2,7x mais rápido (~4s), disponível via 2 provedores no
+> OpenRouter (Google AI Studio e Google Vertex, ambos com uptime > 98%) — a
+> versão "cheia" (preview) fica como opção de qualidade quando o resultado do
+> Lite não for bom o suficiente.
 
 **Geração de imagem/vídeo** agora vive em uma seção própria, separada do chat — ver
 seção 7 (Estúdio de Artes). Cada geração tem **custo real** na conta OpenRouter (vídeo
@@ -283,8 +291,10 @@ escolhido, campo de prompt e uma galeria de resultados (mais recente no topo).
   (mesma decisão já tomada pra anexos de imagem no chat, pra não estourar cota
   de armazenamento com base64 grandes); baixe o que quiser guardar antes de
   recarregar a página.
-- **Modelos configurados:** Nano Banana 2 (`google/gemini-3.1-flash-image-preview`,
-  imagem) e MiniMax Video (`minimax/hailuo-2.3`, vídeo) — ver tabela da seção 3.
+- **Modelos configurados:** duas opções de imagem — Nano Banana 2 Lite
+  (`google/gemini-3.1-flash-lite-image`, padrão: rápido e barato) e Nano Banana 2
+  (`google/gemini-3.1-flash-image-preview`, mais qualidade, o dobro do preço) —
+  e um de vídeo, MiniMax Video (`minimax/hailuo-2.3`) — ver tabela da seção 3.
   Editável em `/admin` como qualquer outro modelo.
 - **Gemini Omni Flash (vídeo) ficou de fora por enquanto:** é um modelo muito
   recente do Google e, até onde foi possível confirmar, ainda não está
