@@ -17,6 +17,7 @@
 
   const modelSelect = document.getElementById('modelSelect');
   const promptSelect = document.getElementById('promptSelect');
+  const mainContent = document.getElementById('mainContent');
   const chatInner = document.getElementById('chatInner');
   const emptyState = document.getElementById('emptyState');
   const promptInput = document.getElementById('promptInput');
@@ -160,6 +161,72 @@
     container.appendChild(span);
   }
 
+  function downloadHtmlFile(code) {
+    const blob = new Blob([code], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `multiia-${Date.now()}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function copyToClipboard(code, btn, labelIdle) {
+    try {
+      await navigator.clipboard.writeText(code);
+      btn.innerHTML = '✅ <span>Copiado</span>';
+    } catch {
+      btn.innerHTML = '⚠️ <span>Falhou</span>';
+    }
+    setTimeout(() => { btn.innerHTML = labelIdle; }, 1800);
+  }
+
+  // --- Fullscreen HTML preview (fills the area between topbar and bottom nav) --
+
+  let fullscreenPreviewEl = null;
+  function openFullscreenPreview(code) {
+    if (!fullscreenPreviewEl) {
+      fullscreenPreviewEl = document.createElement('div');
+      fullscreenPreviewEl.className = 'fullscreen-preview';
+
+      const header = document.createElement('div');
+      header.className = 'fullscreen-preview-header';
+
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'code-action-btn';
+      closeBtn.innerHTML = '✕ <span>Fechar</span>';
+      closeBtn.addEventListener('click', closeFullscreenPreview);
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'code-action-btn';
+      copyBtn.innerHTML = '📋 <span>Copiar</span>';
+      copyBtn.addEventListener('click', () => copyToClipboard(fullscreenPreviewEl.dataset.code, copyBtn, '📋 <span>Copiar</span>'));
+
+      const downloadBtn = document.createElement('button');
+      downloadBtn.className = 'code-action-btn primary';
+      downloadBtn.innerHTML = '⬇ <span>Baixar .html</span>';
+      downloadBtn.addEventListener('click', () => downloadHtmlFile(fullscreenPreviewEl.dataset.code));
+
+      header.append(closeBtn, copyBtn, downloadBtn);
+
+      const iframe = document.createElement('iframe');
+      iframe.className = 'fullscreen-preview-iframe';
+      iframe.setAttribute('sandbox', 'allow-scripts');
+
+      fullscreenPreviewEl.append(header, iframe);
+      mainContent.appendChild(fullscreenPreviewEl);
+    }
+    fullscreenPreviewEl.dataset.code = code;
+    fullscreenPreviewEl.querySelector('iframe').srcdoc = code;
+    fullscreenPreviewEl.style.display = 'flex';
+  }
+
+  function closeFullscreenPreview() {
+    if (fullscreenPreviewEl) fullscreenPreviewEl.style.display = 'none';
+  }
+
   function buildCodeBlock(lang, code) {
     const isHtml = looksLikeHtml(lang, code);
     const block = document.createElement('div');
@@ -172,66 +239,30 @@
     const actions = document.createElement('div');
     actions.className = 'code-actions';
 
-    let previewWrap = null;
     if (isHtml) {
       const previewBtn = document.createElement('button');
       previewBtn.className = 'code-action-btn';
       previewBtn.innerHTML = '👁 <span>Preview</span>';
-      previewWrap = document.createElement('div');
-      previewWrap.className = 'code-preview-wrap';
-      previewWrap.hidden = true;
-      let loaded = false;
-      previewBtn.addEventListener('click', () => {
-        const willShow = previewWrap.hidden;
-        previewWrap.hidden = !willShow;
-        previewBtn.innerHTML = willShow ? '✕ <span>Fechar</span>' : '👁 <span>Preview</span>';
-        if (willShow && !loaded) {
-          const iframe = document.createElement('iframe');
-          iframe.className = 'code-preview-iframe';
-          iframe.setAttribute('sandbox', 'allow-scripts');
-          iframe.srcdoc = code;
-          previewWrap.appendChild(iframe);
-          loaded = true;
-        }
-      });
+      previewBtn.addEventListener('click', () => openFullscreenPreview(code));
       actions.appendChild(previewBtn);
     }
 
     const copyBtn = document.createElement('button');
     copyBtn.className = 'code-action-btn';
     copyBtn.innerHTML = '📋 <span>Copiar</span>';
-    copyBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(code);
-        copyBtn.innerHTML = '✅ <span>Copiado</span>';
-      } catch {
-        copyBtn.innerHTML = '⚠️ <span>Falhou</span>';
-      }
-      setTimeout(() => { copyBtn.innerHTML = '📋 <span>Copiar</span>'; }, 1800);
-    });
+    copyBtn.addEventListener('click', () => copyToClipboard(code, copyBtn, '📋 <span>Copiar</span>'));
     actions.appendChild(copyBtn);
 
     if (isHtml) {
       const downloadBtn = document.createElement('button');
       downloadBtn.className = 'code-action-btn primary';
       downloadBtn.innerHTML = '⬇ <span>Baixar .html</span>';
-      downloadBtn.addEventListener('click', () => {
-        const blob = new Blob([code], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `multiia-${Date.now()}.html`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(url);
-      });
+      downloadBtn.addEventListener('click', () => downloadHtmlFile(code));
       actions.appendChild(downloadBtn);
     }
 
     header.appendChild(actions);
     block.appendChild(header);
-    if (previewWrap) block.appendChild(previewWrap);
 
     const pre = document.createElement('pre');
     const codeEl = document.createElement('code');

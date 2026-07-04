@@ -19,8 +19,6 @@
 <div class="blob blob-1"></div>
 <div class="blob blob-2"></div>
 
-<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
-
 <div class="app-shell">
   <aside class="sidebar glass" id="sidebar">
     <button class="new-chat-btn" id="newChatBtn">+ Novo Chat</button>
@@ -30,6 +28,8 @@
       <a href="admin.html">Admin</a>
     </div>
   </aside>
+
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
   <main class="main">
     <div class="topbar glass">
@@ -43,24 +43,26 @@
 
     <div class="status-banner glass" id="statusBanner" style="display:none;"></div>
 
-    <div class="chat-scroll">
-      <div class="chat-inner" id="chatInner">
-        <div class="empty-state" id="emptyState">
-          <h1>MultiIA</h1>
-          <p>Converse com modelos abertos (GLM, Kimi, DeepSeek, Qwen, MiniMax) via OpenRouter.</p>
+    <div class="main-content" id="mainContent">
+      <div class="chat-scroll">
+        <div class="chat-inner" id="chatInner">
+          <div class="empty-state" id="emptyState">
+            <h1>MultiIA</h1>
+            <p>Converse com modelos abertos (GLM, Kimi, DeepSeek, Qwen, MiniMax) via OpenRouter.</p>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="composer">
-      <div class="attachments-row" id="attachmentsRow"></div>
-      <div class="composer-inner glass">
-        <button class="attach-btn" id="attachBtn" title="Anexar arquivo">📎</button>
-        <input type="file" id="fileInput" accept="image/*,.txt,.md,.csv,.json,.pdf" multiple hidden />
-        <textarea id="promptInput" rows="1" placeholder="Digite uma mensagem..."></textarea>
-        <button class="send-btn" id="sendBtn" title="Enviar">➤</button>
+      <div class="composer">
+        <div class="attachments-row" id="attachmentsRow"></div>
+        <div class="composer-inner glass">
+          <button class="attach-btn" id="attachBtn" title="Anexar arquivo">📎</button>
+          <input type="file" id="fileInput" accept="image/*,.txt,.md,.csv,.json,.pdf" multiple hidden />
+          <textarea id="promptInput" rows="1" placeholder="Digite uma mensagem..."></textarea>
+          <button class="send-btn" id="sendBtn" title="Enviar">➤</button>
+        </div>
+        <div class="hint">As respostas sao geradas por modelos de IA e podem conter erros.</div>
       </div>
-      <div class="hint">As respostas sao geradas por modelos de IA e podem conter erros.</div>
     </div>
 
     <nav class="bottom-nav glass">
