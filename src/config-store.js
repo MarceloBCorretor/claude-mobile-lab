@@ -20,7 +20,9 @@ const DEFAULT_MODELS = [
   { id: 'gemini-3.1-flash-image-preview', label: 'Nano Banana 2 (qualidade)', enabled: true, kind: 'image', provider: 'gemini' },
   { id: 'gpt-image-1', label: 'GPT Image (OpenAI)', enabled: true, kind: 'image', provider: 'openai' },
   { id: 'veo-3.1-lite-generate-preview', label: 'Veo 3.1 Lite (rapido/barato)', enabled: true, kind: 'video', provider: 'gemini' },
-  { id: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (qualidade)', enabled: true, kind: 'video', provider: 'gemini' }
+  { id: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (qualidade)', enabled: true, kind: 'video', provider: 'gemini' },
+  { id: 'gpt-4o-mini-transcribe', label: 'Transcricao rapida (OpenAI)', enabled: true, kind: 'audio', provider: 'openai' },
+  { id: 'whisper-1', label: 'Whisper classico (OpenAI)', enabled: true, kind: 'audio', provider: 'openai' }
 ];
 
 function hashPassword(password, salt) {

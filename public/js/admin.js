@@ -64,6 +64,7 @@
           <option value="chat" ${kind === 'chat' ? 'selected' : ''}>Chat</option>
           <option value="image" ${kind === 'image' ? 'selected' : ''}>Imagem</option>
           <option value="video" ${kind === 'video' ? 'selected' : ''}>Video</option>
+          <option value="audio" ${kind === 'audio' ? 'selected' : ''}>Audio</option>
         </select>
       </td>
       <td>
