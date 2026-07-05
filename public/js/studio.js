@@ -1,5 +1,8 @@
 (() => {
-  const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4'];
+  // 9:16 primeiro = valor padrao do <select> (pedido do usuario). "1:1" foi
+  // removido - a API do Gemini rejeitou com "aspectRatio does not support 1:1"
+  // num teste real contra o modelo Nano Banana 2 Lite.
+  const ASPECT_RATIOS = ['9:16', '16:9', '4:3', '3:4'];
   const VIDEO_RESOLUTIONS = ['720p', '1080p'];
   const MAX_REFERENCE_IMAGES = 3;
 
