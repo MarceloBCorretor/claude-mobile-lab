@@ -371,8 +371,15 @@ de prompt e uma galeria de resultados (mais recente no topo).
   `public/js/studio.js` (cada item precisa de `id`, `kind`, `category`, `label`,
   `template`).
 - **Opções por tipo:**
-  - Imagem: proporção (`aspect_ratio`) — 1:1, 16:9, 9:16, 4:3, 3:4.
-  - Vídeo: proporção + resolução (720p/1080p, valores reais do Veo 3.1).
+  - Imagem: proporção (`aspect_ratio`) — 9:16 (padrão), 16:9, 4:3, 3:4. `1:1` foi
+    **removido** (não é o padrão para nenhuma opção): a API real do Gemini
+    rejeitou essa proporção contra o modelo Nano Banana 2 Lite com o erro
+    `"aspectRatio does not support 1:1 as a valid value"` — comportamento real
+    da API prevaleceu sobre a documentação geral, que sugeria `1:1` como válido.
+    `9:16` virou o valor padrão do seletor a pedido do usuário ("o modelo que
+    eu quero que seja padrão para todos os as opções é 9 por 16").
+  - Vídeo: proporção (mesma lista acima, `9:16` padrão) + resolução (720p/1080p,
+    valores reais do Veo 3.1).
 - **API usada** (direto na API do Gemini, `x-goog-api-key`, não passa pela
   OpenRouter):
   - Imagem — `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
@@ -457,12 +464,25 @@ de prompt e uma galeria de resultados (mais recente no topo).
     determinados movimentos, mesmo com `done: true` e sem `error`. **Corrigido
     em `src/gemini.js`:** `pollVideoJob` agora detecta esse campo e lança um
     erro explícito ("O Gemini bloqueou a geração por política de conteúdo...")
-    em vez do genérico "A geração do vídeo falhou" — ainda não testado de novo
-    contra uma chamada real pra confirmar se essa é de fato a causa (a
-    alternativa seria um problema na forma como a imagem de referência é
-    enviada pro Veo, `instances[0].image.bytesBase64Encoded`, mas o job ter
-    sido aceito e processado por várias tentativas antes de "falhar" sugere
-    fortemente filtro de conteúdo, não erro de formato).
+    em vez do genérico "A geração do vídeo falhou".
+  - **Confirmado numa segunda rodada de teste real (2026-07-05), com um prompt
+    de personagens reconhecíveis — Scooby-Doo e Salsicha):** o erro apareceu
+    exatamente no formato esperado, com o texto real do Google incluído
+    ("We encountered an issue with the audio for your prompt... **You have not
+    been charged for this attempt**"). Ou seja: não é falta de crédito nem bug
+    do projeto — é rejeição por política de conteúdo (provavelmente por
+    reproduzir personagens protegidos por direitos autorais), e a tentativa
+    falhada **não foi cobrada**. Na mesma rodada, o **GPT Image (OpenAI)**
+    também rejeitou o mesmo tipo de conteúdo com sua própria mensagem genérica
+    de segurança ("Your request was rejected by the safety system...") — sem
+    necessidade de nenhum ajuste de código, é só o texto de erro da OpenAI
+    passando direto (o pipeline de erro já existente cobre isso) — segundo
+    ponto de evidência apontando pra a mesma causa (personagens protegidos).
+  - **Bug real encontrado e corrigido na mesma rodada:** a API do Gemini
+    rejeitou `aspectRatio: "1:1"` contra o modelo Nano Banana 2 Lite com
+    `"aspectRatio does not support 1:1 as a valid value"`. Corrigido removendo
+    `1:1` da lista de proporções em `public/js/studio.js` e definindo `9:16`
+    como padrão (ver detalhes na lista de opções acima).
 
 ## 8. Painel administrador (`public/admin.html` + `public/js/admin.js`)
 
@@ -551,7 +571,8 @@ de prompt e uma galeria de resultados (mais recente no topo).
 | #14 | Toast de confirmação no admin + biblioteca de prompts ampliada + detecção de filtro de conteúdo | Toast + flash no botão ao salvar chaves/modelos/senha, ~27 novos templates de prompt (animação/ilustração, cinematográfico, publicitário) filtrados por tipo, `pollVideoJob` detecta bloqueio por política de conteúdo do Gemini |
 | #15 | GPT Image (OpenAI) + animar imagem gerada + infográficos | `src/openai-images.js`, campo `provider` nos modelos, `OPENAI_API_KEY` + campo no admin, botão "Animar esta imagem" (imagem → vídeo), 2 templates de infográfico (estilo revista, vista explodida) |
 | #16 | Ícone do app refeito em alta definição | Novo ícone (rede/nós, roxo/ciano) gerado via SVG + Playwright em 16/32/180/192/512px, `favicon.ico` reconstruído |
-| #17 (a caminho) | Transcrição de áudio + fix de layout mobile | `src/openai-audio.js` + aba Áudio no Estúdio (`kind: 'audio'`), fix de `.app-shell`/`.login-shell` usando `100svh` em vez de `100dvh` (barra inferior escondida atrás da barra de endereço do navegador) |
+| #17 | Transcrição de áudio + fix de layout mobile | `src/openai-audio.js` + aba Áudio no Estúdio (`kind: 'audio'`), fix de `.app-shell`/`.login-shell` usando `100svh` em vez de `100dvh` (barra inferior escondida atrás da barra de endereço do navegador) |
+| #18 (a caminho) | Fix proporção 1:1 inválida no Gemini + 9:16 como padrão | Remove `1:1` de `ASPECT_RATIOS` (rejeitada pela API real do Gemini), define `9:16` como padrão para imagem e vídeo |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
