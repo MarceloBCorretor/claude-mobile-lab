@@ -3,13 +3,13 @@
   const VIDEO_RESOLUTIONS = ['720p', '1080p'];
   const MAX_REFERENCE_IMAGES = 3;
 
-  // Ideias de prompt prontas (adaptadas de um tutorial de ensaio fotografico
-  // com Gemini) - inserem o texto no campo de prompt para o usuario editar,
-  // mesmo padrao das "Tecnicas de estudo" do chat. Funcionam melhor com uma
-  // foto de referencia anexada (botao 📎 abaixo).
+  // Ideias de prompt prontas - inserem o texto no campo de prompt para o
+  // usuario editar, mesmo padrao das "Tecnicas de estudo" do chat. `kind`
+  // filtra em qual aba (imagem/video) a ideia aparece ('both' aparece nas duas).
   const PROMPT_LIBRARY = [
+    // --- Ensaios com foto de referencia (adaptado de tutorial de ensaio fotografico) ---
     {
-      id: 'restore-photo',
+      id: 'restore-photo', kind: 'image', category: 'Ensaios com foto de referencia',
       label: '🖼️ Restaurar foto antiga',
       template: 'Restaure esta foto antiga anexada. Mantenha a autenticidade dos rostos e expressoes originais '
         + '(sem alterar as feicoes). Remova arranhoes, manchas e sinais de desgaste, aumente nitidez e resolucao, '
@@ -18,52 +18,268 @@
         + 'composicao original.'
     },
     {
-      id: 'couple-beach',
+      id: 'couple-beach', kind: 'image', category: 'Ensaios com foto de referencia',
       label: '🌊 Ensaio romantico na praia',
       template: 'Use a foto anexada como referencia exata dos rostos e poses; nao altere nossas feicoes. Crie uma '
         + 'cena de nos dois em uma praia deserta ao entardecer, olhando um para o outro, iluminacao suave e '
         + 'intimista. Respeite a proporcao e a composicao da foto base.'
     },
     {
-      id: 'couple-studio',
+      id: 'couple-studio', kind: 'image', category: 'Ensaios com foto de referencia',
       label: '🖤 Retrato de casal em estudio',
       template: 'Use a foto anexada como referencia exata dos rostos; nao altere as feicoes. Crie um retrato '
         + 'profissional ultra-realista de estudio, casal abracado, iluminacao suave, fundo neutro, estetica '
         + 'moderna e clean, alta definicao.'
     },
     {
-      id: 'couple-bw',
+      id: 'couple-bw', kind: 'image', category: 'Ensaios com foto de referencia',
       label: '🤍 Retrato fine art em P&B',
       template: 'Use a foto anexada como referencia exata dos rostos; nao altere tracos faciais. Crie um retrato '
         + 'de estudio em preto e branco, estilo fine art, pose intima e serena, iluminacao suave e difusa, fundo '
         + 'escuro solido, atmosfera atemporal e emocional.'
     },
     {
-      id: 'flowers-field',
+      id: 'flowers-field', kind: 'image', category: 'Ensaios com foto de referencia',
       label: '🌻 Ensaio em campo de flores',
       template: 'Use a foto anexada como referencia exata dos rostos; preserve todos os tracos faciais. Crie um '
         + 'ensaio romantico em um campo vibrante de flores, iluminacao suave e neblina eterea, atmosfera alegre '
         + 'e natural, estilo cinematografico.'
     },
     {
-      id: 'urban-rain',
+      id: 'urban-rain', kind: 'image', category: 'Ensaios com foto de referencia',
       label: '🌃 Rua chuvosa a noite',
       template: 'Use a foto anexada como referencia exata dos rostos e poses; nao altere nenhuma feicao. Crie uma '
         + 'cena cinematografica em uma rua a noite sob chuva leve, reflexos de luzes de neon no chao molhado, '
         + 'atmosfera romantica e moderna.'
     },
     {
-      id: 'dramatic-angles',
+      id: 'dramatic-angles', kind: 'image', category: 'Ensaios com foto de referencia',
       label: '🎬 Angulos dramaticos (4 estilos)',
       template: 'Transforme a foto anexada em um conjunto de 4 estilos fotorrealistas e cinematograficos, cada '
         + 'um com um angulo de camera dinamico e diferente, mantendo a mesma pessoa/pessoas e o ambiente original '
         + 'expandido, com iluminacao cinematografica e cores de alto contraste.'
     },
     {
-      id: 'animate-scene',
+      id: 'animate-scene', kind: 'video', category: 'Ensaios com foto de referencia',
       label: '🎥 Animar a cena (video)',
       template: 'Anime esta cena mantendo os rostos e roupas fieis a imagem de referencia anexada, com um '
         + 'movimento de camera suave e natural e iluminacao consistente com a foto original.'
+    },
+
+    // --- Nano Banana 2: animacao e ilustracao moderna (imagens) ---
+    {
+      id: 'nb-pixar', kind: 'image', category: 'Animacao/ilustracao (Nano Banana)',
+      label: '🎨 Animacao 3D Pixar/Disney',
+      template: 'Um medico sorridente em um consultorio moderno e iluminado, segurando um tablet. Estilo de '
+        + 'animacao 3D Pixar, texturas suaves, iluminacao volumetrica, cores vibrantes e acolhedoras, renderizacao '
+        + 'em Unreal Engine 5, alta resolucao 8k.'
+    },
+    {
+      id: 'nb-ghibli', kind: 'image', category: 'Animacao/ilustracao (Nano Banana)',
+      label: '🎨 Studio Ghibli (anime classico)',
+      template: 'Uma familia caminhando por um parque ensolarado com arvores verdes e ceu azul. Estilo Studio '
+        + 'Ghibli, ilustracao 2D detalhada, pintura em aquarela digital, atmosfera pacifica e nostalgica, paleta '
+        + 'de cores pastel.'
+    },
+    {
+      id: 'nb-flat', kind: 'image', category: 'Animacao/ilustracao (Nano Banana)',
+      label: '🎨 Vetor minimalista (flat design)',
+      template: 'Ilustracao vetorial de um homem de negocios analisando graficos subindo em uma tela holografica. '
+        + 'Estilo flat design corporativo, formas geometricas limpas, paleta de cores azul e laranja, fundo '
+        + 'branco, estilo NotebookLM, sem contornos escuros.'
+    },
+    {
+      id: 'nb-claymation', kind: 'image', category: 'Animacao/ilustracao (Nano Banana)',
+      label: '🎨 Claymation (massa de modelar 3D)',
+      template: 'Um corretor apertando a mao de um cliente em uma mesa de escritorio. Estilo de animacao Aardman '
+        + '(claymation), texturas realistas de massa de modelar, iluminacao de estudio suave, profundidade de '
+        + 'campo rasa, fotorrealista.'
+    },
+    {
+      id: 'nb-lowpoly', kind: 'image', category: 'Animacao/ilustracao (Nano Banana)',
+      label: '🎨 Low Poly 3D (geometrico)',
+      template: 'Uma casa moderna protegida por um escudo brilhante. Estilo Low Poly 3D, formas angulares e '
+        + 'facetadas, cores neon vibrantes sobre fundo escuro, iluminacao dramatica, renderizacao Octane, design '
+        + 'contemporaneo.'
+    },
+    {
+      id: 'nb-cyberpunk', kind: 'image', category: 'Animacao/ilustracao (Nano Banana)',
+      label: '🎨 Cyberpunk/neon 3D',
+      template: 'Um smartphone exibindo um aplicativo de seguros com uma interface futurista brilhante. Estilo '
+        + 'Cyberpunk 3D, luzes neon roxas e ciano, reflexos em vidro molhado, hiper-detalhado, estetica tech de '
+        + 'ponta.'
+    },
+    {
+      id: 'nb-cel', kind: 'image', category: 'Animacao/ilustracao (Nano Banana)',
+      label: '🎨 Cel shading (quadrinhos modernos)',
+      template: 'Um cirurgiao com capa de heroi em pe com postura confiante em um corredor de hospital. Estilo '
+        + 'cel shading, cores solidas com sombreamento dinamico, tracos grossos estilo historia em quadrinhos, '
+        + 'iluminacao de alto contraste.'
+    },
+    {
+      id: 'nb-watercolor', kind: 'image', category: 'Animacao/ilustracao (Nano Banana)',
+      label: '🎨 Aquarela digital fluida',
+      template: 'Um casal idoso sorrindo e segurando as maos com um por do sol ao fundo. Estilo pintura em '
+        + 'aquarela, bordas suaves, transicoes de cores fluidas, atmosfera romantica e tranquila, tracos '
+        + 'artisticos expressivos.'
+    },
+    {
+      id: 'nb-papercraft', kind: 'image', category: 'Animacao/ilustracao (Nano Banana)',
+      label: '🎨 Papercraft (arte em papel 3D)',
+      template: 'Um ecossistema de negocios com predios, carros e arvores, tudo construido em papel recortado. '
+        + 'Estilo papercraft 3D, texturas reais de cartolina, iluminacao direcional criando sombras duras, cores '
+        + 'analogas em tons de azul, fotorrealista.'
+    },
+    {
+      id: 'nb-sketch', kind: 'image', category: 'Animacao/ilustracao (Nano Banana)',
+      label: '🎨 Sketch arquitetonico moderno',
+      template: 'Um projeto de clinica medica de alto padrao. Estilo de desenho a traco arquitetonico misturado '
+        + 'com renderizacao 3D parcial, linhas finas de nanquim com blocos de cor fotorrealista, limpo, '
+        + 'profissional, estudio de design.'
+    },
+
+    // --- Estilos de movimento e video cinematografico (Veo) ---
+    {
+      id: 'vid-slowmo', kind: 'video', category: 'Cinematografico (video)',
+      label: '🎬 Cinematic slow motion',
+      template: 'Camera em camera lenta (slow motion) a 120fps. Um executivo assinando um contrato importante '
+        + 'com uma caneta-tinteiro. Foco na ponta da caneta e no papel, profundidade de campo rasa (bokeh), '
+        + 'iluminacao dramatica de escritorio, resolucao 4K.'
+    },
+    {
+      id: 'vid-hyperlapse', kind: 'video', category: 'Cinematografico (video)',
+      label: '🎬 Hyper-lapse urbano',
+      template: 'Movimento hyper-lapse rapido passando pela avenida principal de uma cidade moderna ao '
+        + 'entardecer. Rastros de luz dos carros, transicao do dia para a noite, cores cinematograficas quentes, '
+        + 'sensacao de velocidade e progresso.'
+    },
+    {
+      id: 'vid-macro', kind: 'video', category: 'Cinematografico (video)',
+      label: '🎬 Macro cinematografico',
+      template: 'Tomada macro extremamente proxima de uma gota de suor no rosto de um medico em cirurgia, '
+        + 'seguida de uma expressao de alivio. Foco dinamico, textura de pele hiper-realista, iluminacao de '
+        + 'centro cirurgico com tons de azul e branco.'
+    },
+    {
+      id: 'vid-drone', kind: 'video', category: 'Cinematografico (video)',
+      label: '🎬 Drone fly-through (FPV)',
+      template: 'Camera de drone voando suavemente pela porta de entrada de uma clinica moderna, passando pela '
+        + 'recepcao ate chegar a um consultorio de alto padrao. Movimento continuo, estabilizado, iluminacao '
+        + 'natural entrando pelas janelas.'
+    },
+    {
+      id: 'vid-loop', kind: 'video', category: 'Cinematografico (video)',
+      label: '🎬 Loop de animacao 3D',
+      template: 'Uma moeda dourada girando perfeitamente em loop sobre uma mesa de vidro, refletindo graficos '
+        + 'financeiros subindo. Movimento suave, camera estatica, renderizacao fotorrealista, iluminacao de '
+        + 'estudio comercial.'
+    },
+    {
+      id: 'vid-typography', kind: 'video', category: 'Cinematografico (video)',
+      label: '🎬 Tipografia cinetica',
+      template: 'Palavras em 3D brilhantes flutuando e se encaixando perfeitamente no centro de uma tela vazia. '
+        + 'Fundo abstrato em tons de grafite, camera orbitando levemente ao redor das palavras, design corporativo '
+        + 'e limpo.'
+    },
+    {
+      id: 'vid-parallax', kind: 'video', category: 'Cinematografico (video)',
+      label: '🎬 Efeito parallax 2.5D',
+      template: 'Uma foto de familia antiga em preto e branco que ganha vida e profundidade (efeito parallax). A '
+        + 'camera faz um pan lento e zoom in no rosto da crianca, poeira suspensa no ar iluminada pela luz da '
+        + 'janela, nostalgico e emocional.'
+    },
+    {
+      id: 'vid-particles', kind: 'video', category: 'Cinematografico (video)',
+      label: '🎬 Revelacao com particulas (glow)',
+      template: 'Fundo escuro. Um escudo de protecao se forma a partir de milhares de particulas de luz neon '
+        + 'azul que se unem rapidamente. Animacao fluida, alto contraste, estilo tecnologia de ponta, camera '
+        + 'afastando levemente.'
+    },
+    {
+      id: 'vid-tracking', kind: 'video', category: 'Cinematografico (video)',
+      label: '🎬 Tracking shot (acompanhamento)',
+      template: 'Camera acompanhando um corretor bem vestido caminhando com confianca por um saguao de vidro. A '
+        + 'camera anda de costas na mesma velocidade do sujeito, focado no rosto dele enquanto o fundo passa '
+        + 'desfocado.'
+    },
+    {
+      id: 'vid-timelapse', kind: 'video', category: 'Cinematografico (video)',
+      label: '🎬 Time-lapse de crescimento',
+      template: 'Uma arvore crescendo rapidamente a partir de uma pequena semente ate virar um carvalho forte, '
+        + 'com o sol nascendo e se pondo ao fundo em segundos. Representacao visual de longo prazo, cores ricas, '
+        + 'movimento de nuvens rapido.'
+    },
+
+    // --- Estilos profissionais e publicitarios (imagem ou video) ---
+    {
+      id: 'pro-outdoor', kind: 'both', category: 'Profissional/publicitario',
+      label: '📸 Outdoor corporativo (espaco negativo)',
+      template: 'Fotografia de um cirurgiao com os bracos cruzados olhando para a camera com confianca. Sujeito '
+        + 'posicionado a direita da tela. Fundo limpo e escuro a esquerda criando espaco negativo perfeito para '
+        + 'insercao de texto publicitario. Iluminacao de estudio Rembrandt.'
+    },
+    {
+      id: 'pro-mockup', kind: 'both', category: 'Profissional/publicitario',
+      label: '📸 Mockup de aplicativo realista',
+      template: 'Um smartphone de ultima geracao segurado por uma mao, exibindo a interface limpa e moderna de '
+        + 'um app. Fundo desfocado de uma cafeteria elegante. Fotografia de produto, iluminacao natural suave, '
+        + 'cores vivas.'
+    },
+    {
+      id: 'pro-doubleexposure', kind: 'both', category: 'Profissional/publicitario',
+      label: '📸 Double exposure (dupla exposicao)',
+      template: 'A silhueta de perfil de um homem de negocios, dentro da silhueta ha uma dupla exposicao '
+        + 'mostrando o horizonte de uma cidade misturado com engrenagens girando. Estilo artistico editorial, '
+        + 'paleta monocromatica com detalhes em dourado.'
+    },
+    {
+      id: 'pro-flatlay', kind: 'both', category: 'Profissional/publicitario',
+      label: '📸 Flat lay de mesa de trabalho',
+      template: 'Visao de cima para baixo (flat lay) de uma mesa de madeira escura com um tablet moderno, oculos '
+        + 'de leitura, uma xicara de cafe fumegante e papeis organizados. Composicao geometrica perfeita, '
+        + 'iluminacao de janela, ideal para fundo de site.'
+    },
+    {
+      id: 'pro-isometric', kind: 'both', category: 'Profissional/publicitario',
+      label: '📸 Cena isometrica corporativa',
+      template: 'Uma visao isometrica 3D de um consultorio medico de alto padrao, sem teto, revelando a '
+        + 'disposicao dos moveis, equipamentos e sala de espera. Estilo arquitetonico moderno, iluminacao '
+        + 'realista, paleta de cores brancas, madeiras e verde musgo.'
+    },
+    {
+      id: 'pro-splitscreen', kind: 'both', category: 'Profissional/publicitario',
+      label: '📸 Antes e depois (split screen)',
+      template: 'Tela dividida de forma criativa. Lado esquerdo: tons escuros e azulados mostrando pilhas de '
+        + 'papelada caotica. Lado direito: tons quentes e ensolarados mostrando um tablet com uma interface '
+        + 'limpa e organizada. Alto contraste, mensagem visual direta.'
+    },
+    {
+      id: 'pro-neon', kind: 'both', category: 'Profissional/publicitario',
+      label: '📸 Tipografia neon em parede industrial',
+      template: 'A palavra "SEGURANCA" escrita em luzes neon brancas brilhantes em uma parede de tijolos '
+        + 'escuros. Fotografia noturna urbana, reflexos sutis no chao molhado, atmosfera premium, profundidade '
+        + 'de campo realista.'
+    },
+    {
+      id: 'pro-chiaroscuro', kind: 'both', category: 'Profissional/publicitario',
+      label: '📸 Retrato chiaroscuro (alto padrao)',
+      template: 'Fotografia de meio corpo de uma executiva em traje social escuro. Iluminacao dramatica '
+        + 'chiaroscuro (forte contraste entre luz e sombra), fundo totalmente preto, foco extremamente nitido '
+        + 'nos olhos, transmite autoridade e seriedade.'
+    },
+    {
+      id: 'pro-infographic', kind: 'both', category: 'Profissional/publicitario',
+      label: '📸 Infografico abstrato 3D',
+      template: 'Formas geometricas de vidro flutuando no espaco escuro emitindo luzes internas conectadas por '
+        + 'feixes de laser. Representacao visual moderna de protecao de dados e ecossistema digital. Estilo '
+        + 'tecnologia corporativa, renderizacao 8k hiper-detalhada.'
+    },
+    {
+      id: 'pro-lifestyle', kind: 'both', category: 'Profissional/publicitario',
+      label: '📸 Lifestyle premium',
+      template: 'Um cliente relaxando e sorrindo na sacada de um apartamento de luxo, segurando uma taca de '
+        + 'vinho, com a cidade iluminada ao fundo. Fotografia de estilo de vida comercial, cores quentes de '
+        + 'golden hour, transmite sucesso e tranquilidade, imagem de altissima qualidade.'
     }
   ];
 
@@ -154,7 +370,16 @@
 
   // --- Prompt library -------------------------------------------------------
 
-  promptLibrarySelect.innerHTML += PROMPT_LIBRARY.map((p) => `<option value="${p.id}">${escapeHtml(p.label)}</option>`).join('');
+  function renderPromptLibrary() {
+    const relevant = PROMPT_LIBRARY.filter((p) => p.kind === activeKind || p.kind === 'both');
+    const categories = [...new Set(relevant.map((p) => p.category))];
+    const optionsHtml = categories.map((cat) => {
+      const items = relevant.filter((p) => p.category === cat);
+      return `<optgroup label="${escapeHtml(cat)}">${items.map((p) => `<option value="${p.id}">${escapeHtml(p.label)}</option>`).join('')}</optgroup>`;
+    }).join('');
+    promptLibrarySelect.innerHTML = `<option value="">📖 Ideias de prompt</option>${optionsHtml}`;
+  }
+
   promptLibrarySelect.addEventListener('change', () => {
     const item = PROMPT_LIBRARY.find((p) => p.id === promptLibrarySelect.value);
     if (!item) return;
@@ -250,6 +475,7 @@
           <select id="resolutionSelect">${VIDEO_RESOLUTIONS.map((r) => `<option value="${r}">${r}</option>`).join('')}</select>
         </label>`;
     }
+    renderPromptLibrary();
     studioOptions.appendChild(promptLibrarySelect);
   }
 

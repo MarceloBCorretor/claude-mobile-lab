@@ -183,7 +183,7 @@ usuário, e um redeploy (adicionar a variável sozinha não redeploya automátic
 - Service worker (`service-worker.js`) usa estratégia **network-first** (não
   cache-first) para que deploys novos apareçam sem precisar limpar cache do site.
   Versão do cache é bumped manualmente (`CACHE_NAME`) a cada mudança relevante de
-  assets — está em `multiia-shell-v11` no momento.
+  assets — está em `multiia-shell-v13` no momento.
 
 ### 6.3 Anexos no composer
 Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
@@ -284,13 +284,22 @@ de prompt e uma galeria de resultados (mais recente no topo).
   limpa sozinho a cada envio, já que o uso típico é gerar várias variações a
   partir da mesma foto). Para imagem, todas as referências viram `inline_data`
   na requisição; para vídeo, só a primeira é usada como frame de referência.
-- **Biblioteca de ideias de prompt:** dropdown "📖 Ideias de prompt" com 8
-  templates prontos (restaurar foto antiga, ensaios de casal em cenários
-  variados, ângulos dramáticos, animar cena), adaptados de um tutorial de
-  ensaio fotográfico com Gemini fornecido pelo usuário. Mesmo padrão das
-  "Técnicas de estudo" do chat (seção 6): insere o texto no campo de prompt
-  pronto pra editar, não é um array gerenciável pelo admin — pra adicionar mais
-  ideias, edite o array `PROMPT_LIBRARY` em `public/js/studio.js`.
+- **Biblioteca de ideias de prompt:** dropdown "📖 Ideias de prompt" com ~35
+  templates prontos, organizados em 3-4 categorias (via `<optgroup>`) e
+  **filtrados pelo tipo ativo** (`kind: 'image'`/`'video'`/`'both'` em cada
+  item): "Ensaios com foto de referência" (o conjunto original, casal/retrato),
+  "Animação/ilustração (Nano Banana)" (Pixar, Ghibli, flat design, claymation,
+  low poly, cyberpunk, cel shading, aquarela, papercraft, sketch arquitetônico
+  — só imagem), "Cinematográfico (vídeo)" (slow motion, hyper-lapse, macro,
+  drone fly-through, loop 3D, tipografia cinética, parallax, partículas,
+  tracking shot, time-lapse — só vídeo) e "Profissional/publicitário" (outdoor,
+  mockup, double exposure, flat lay, isométrico, split screen, neon,
+  chiaroscuro, infográfico, lifestyle — aparece nas duas abas, `kind: 'both'`).
+  Mesmo padrão das "Técnicas de estudo" do chat (seção 6): insere o texto no
+  campo de prompt pronto pra editar, não é um array gerenciável pelo admin —
+  pra adicionar mais ideias, edite o array `PROMPT_LIBRARY` em
+  `public/js/studio.js` (cada item precisa de `id`, `kind`, `category`, `label`,
+  `template`).
 - **Opções por tipo:**
   - Imagem: proporção (`aspect_ratio`) — 1:1, 16:9, 9:16, 4:3, 3:4.
   - Vídeo: proporção + resolução (720p/1080p, valores reais do Veo 3.1).
@@ -340,17 +349,31 @@ de prompt e uma galeria de resultados (mais recente no topo).
   3.1** (Lite/Fast), que usa o padrão bem documentado `predictLongRunning` +
   polling. Trocar para Omni Flash mais tarde é possível assim que a API dele
   estiver melhor documentada.
-- **Testado só com respostas mockadas** (Playwright, sem gastar crédito real):
-  fluxo de imagem e vídeo completos (incluindo `referenceImages`/`referenceImage`
-  na requisição), troca de tipo/modelo, biblioteca de prompts, anexo de
-  referência, abertura/fechamento do preview em tela cheia. **O formato exato
-  de resposta da API do Gemini para imagem (`inlineData` vs `inline_data`) e,
-  principalmente, o formato da resposta do Veo quando a geração de vídeo
-  termina (nomes de campo em `response.generateVideoResponse`/`generatedVideos`
-  e como baixar o arquivo de vídeo resultante) são o melhor palpite baseado em
-  documentação e exemplos de SDK — ainda não confirmados contra uma chamada
-  real.** Se a primeira geração real falhar ao processar a resposta (mas sem
-  erro da API em si), o ajuste provavelmente é em `src/gemini.js`.
+- **Testado com respostas mockadas** (Playwright, sem gastar crédito real) antes
+  do primeiro deploy, e depois **confirmado com chamadas reais** (2026-07-05):
+  - **Imagem: funcionando, incluindo referência.** Nano Banana 2 gerou
+    corretamente a partir de texto puro e, com uma foto de referência anexada,
+    reproduziu fielmente a cena/personagens da foto (testado com uma imagem de
+    2 personagens dentro de um carro). Sem a referência, o mesmo prompt gera
+    uma variação livre, como esperado. Nenhum ajuste necessário em
+    `src/gemini.js` pro caminho de imagem.
+  - **Vídeo: funciona sem referência, falha (silenciosamente) com referência.**
+    Veo 3.1 gerou um vídeo real a partir de um prompt de texto puro. Ao repetir
+    o mesmo prompt com uma foto de referência anexada (mesmos personagens do
+    teste de imagem), o job foi aceito e processado normalmente (várias
+    tentativas de polling, sem erro de requisição) mas terminou sem nenhum
+    vídeo — sintoma clássico do filtro de segurança de conteúdo do Google
+    (`raiMediaFilteredCount`), que pode barrar silenciosamente a geração
+    quando a referência mostra personagens/pessoas reconhecíveis fazendo
+    determinados movimentos, mesmo com `done: true` e sem `error`. **Corrigido
+    em `src/gemini.js`:** `pollVideoJob` agora detecta esse campo e lança um
+    erro explícito ("O Gemini bloqueou a geração por política de conteúdo...")
+    em vez do genérico "A geração do vídeo falhou" — ainda não testado de novo
+    contra uma chamada real pra confirmar se essa é de fato a causa (a
+    alternativa seria um problema na forma como a imagem de referência é
+    enviada pro Veo, `instances[0].image.bytesBase64Encoded`, mas o job ter
+    sido aceito e processado por várias tentativas antes de "falhar" sugere
+    fortemente filtro de conteúdo, não erro de formato).
 
 ## 8. Painel administrador (`public/admin.html` + `public/js/admin.js`)
 
@@ -360,6 +383,12 @@ de prompt e uma galeria de resultados (mais recente no topo).
   configuradas (e a origem: variável de ambiente ou arquivo local/painel) —
   nunca expõe o valor das chaves já salvas. Duas seções separadas, um campo
   para cada.
+- **Confirmação visual ao salvar:** toda ação de salvar (chave OpenRouter,
+  chave Gemini, modelos, senha) mostra um toast fixo no topo da tela
+  ("✅ ... salva com sucesso") por ~2.5s, além do texto de feedback já existente
+  e do botão clicado piscar "✅ Salva!" por um instante — corrige o problema de
+  não dar pra confirmar se salvou antes de navegar pra outra tela (reportado
+  pelo usuário ao usar o botão voltar do navegador logo depois de salvar).
 - Tabela de modelos: habilitar/desabilitar, editar ID e nome exibido, escolher
   o **Tipo** (Chat / Imagem / Vídeo — ver seção 7), adicionar ou remover
   linhas.
@@ -427,7 +456,8 @@ de prompt e uma galeria de resultados (mais recente no topo).
 | #10 | Image/video generation via OpenRouter | `src/media-generation.js`, campo `kind` nos modelos, endpoints `/api/generate/image` e `/api/generate/video`, UI de mídia gerada no chat (só MiniMax por enquanto) |
 | #11 | Fix imagem quebrada + Estúdio de Artes separado | Troca `minimax/image-01` (inexistente) por Nano Banana 2 via OpenRouter, opções de resolução/duração pro vídeo, geração de imagem/vídeo removida do chat e movida pra `/studio.html` com preview em tela cheia |
 | #12 | Nano Banana 2 Lite como padrão | Adiciona Nano Banana 2 Lite (mais barato/rápido) como opção padrão de imagem via OpenRouter |
-| #13 (a caminho) | Estúdio de Artes: API direta do Gemini | `src/gemini.js` substitui `src/media-generation.js`, `GEMINI_API_KEY` + campo no admin, MiniMax removido do vídeo, Veo 3.1 (Lite/Fast) no lugar de Omni Flash, upload de foto de referência e biblioteca de ideias de prompt no Estúdio |
+| #13 | Estúdio de Artes: API direta do Gemini | `src/gemini.js` substitui `src/media-generation.js`, `GEMINI_API_KEY` + campo no admin, MiniMax removido do vídeo, Veo 3.1 (Lite/Fast) no lugar de Omni Flash, upload de foto de referência e biblioteca de ideias de prompt no Estúdio |
+| #14 (a caminho) | Toast de confirmação no admin + biblioteca de prompts ampliada + detecção de filtro de conteúdo | Toast + flash no botão ao salvar chaves/modelos/senha, ~27 novos templates de prompt (animação/ilustração, cinematográfico, publicitário) filtrados por tipo, `pollVideoJob` detecta bloqueio por política de conteúdo do Gemini |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
@@ -454,11 +484,12 @@ sobre um PR já mesclado).
 - Nenhum teste automatizado (unit/e2e) foi deixado no repositório — toda a
   verificação até agora foi manual/exploratória (Playwright ad-hoc, descartado
   após uso).
-- Geração de imagem/vídeo (seção 7) só foi testada com respostas mockadas — o
-  formato exato de resposta da API do Gemini (imagem) e principalmente do Veo
-  3.1 (vídeo: nomes de campo da operação concluída e como baixar o arquivo)
-  ainda precisam ser confirmados na primeira geração real em produção. Ver o
-  aviso detalhado no fim da seção 7.
+- **Vídeo com foto de referência pode ser bloqueado por política de conteúdo
+  do Gemini** (`raiMediaFilteredCount`) — confirmado em teste real com uma
+  referência mostrando personagens reconhecíveis. `src/gemini.js` já detecta e
+  reporta isso com uma mensagem clara, mas não há como contornar do lado do
+  app — é uma restrição da própria API. Vídeo sem referência (texto puro) foi
+  confirmado funcionando. Ver detalhes no fim da seção 7.
 - Resultados do Estúdio de Artes não são persistidos entre reloads (mesma
   decisão de não guardar base64 grandes já aplicada a anexos de imagem no chat)
   — o usuário precisa baixar o que quiser guardar. Fotos de referência anexadas

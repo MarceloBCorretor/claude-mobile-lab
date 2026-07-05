@@ -107,6 +107,23 @@ async function pollVideoJob({ apiKey, jobId }) {
     })
     .filter(Boolean);
 
+  if (!urls.length) {
+    // Google's video models can finish "successfully" (done:true, no error) but
+    // produce zero output when their content-safety filter blocks the result -
+    // typical when the reference photo/prompt involves recognizable copyrighted
+    // characters or people. Surface that distinctly instead of a generic failure.
+    const filteredCount = response.raiMediaFilteredCount ?? response.generateVideoResponse?.raiMediaFilteredCount;
+    const filteredReasons = response.raiMediaFilteredReasons || response.generateVideoResponse?.raiMediaFilteredReasons;
+    if (filteredCount) {
+      const err = new Error(
+        `O Gemini bloqueou a geracao por politica de conteudo${filteredReasons ? `: ${filteredReasons.join('; ')}` : ''
+        } (comum ao usar fotos de referencia com personagens/pessoas reconheciveis). Tente outra imagem ou ajuste o prompt.`
+      );
+      err.status = 422;
+      throw err;
+    }
+  }
+
   return { id: jobId, status: urls.length ? 'completed' : 'failed', unsignedUrls: urls };
 }
 
