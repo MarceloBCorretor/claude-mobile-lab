@@ -16,10 +16,11 @@ const DEFAULT_MODELS = [
   { id: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4-Pro', enabled: true, kind: 'chat' },
   { id: 'qwen/qwen3', label: 'Qwen3', enabled: true, kind: 'chat' },
   { id: 'minimax/minimax-m2.7', label: 'MiniMax M2.7', enabled: true, kind: 'chat' },
-  { id: 'gemini-3.1-flash-lite-image', label: 'Nano Banana 2 Lite (rapido/barato)', enabled: true, kind: 'image' },
-  { id: 'gemini-3.1-flash-image-preview', label: 'Nano Banana 2 (qualidade)', enabled: true, kind: 'image' },
-  { id: 'veo-3.1-lite-generate-preview', label: 'Veo 3.1 Lite (rapido/barato)', enabled: true, kind: 'video' },
-  { id: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (qualidade)', enabled: true, kind: 'video' }
+  { id: 'gemini-3.1-flash-lite-image', label: 'Nano Banana 2 Lite (rapido/barato)', enabled: true, kind: 'image', provider: 'gemini' },
+  { id: 'gemini-3.1-flash-image-preview', label: 'Nano Banana 2 (qualidade)', enabled: true, kind: 'image', provider: 'gemini' },
+  { id: 'gpt-image-1', label: 'GPT Image (OpenAI)', enabled: true, kind: 'image', provider: 'openai' },
+  { id: 'veo-3.1-lite-generate-preview', label: 'Veo 3.1 Lite (rapido/barato)', enabled: true, kind: 'video', provider: 'gemini' },
+  { id: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (qualidade)', enabled: true, kind: 'video', provider: 'gemini' }
 ];
 
 function hashPassword(password, salt) {
@@ -56,7 +57,7 @@ function defaultAdminPassword() {
 function loadConfig() {
   const fileConfig = readFileConfig() || {};
   const models = Array.isArray(fileConfig.models) && fileConfig.models.length
-    ? fileConfig.models.map((m) => ({ kind: 'chat', ...m }))
+    ? fileConfig.models.map((m) => ({ kind: 'chat', provider: 'gemini', ...m }))
     : DEFAULT_MODELS;
 
   let adminPasswordHash = fileConfig.adminPasswordHash;
@@ -72,6 +73,8 @@ function loadConfig() {
     apiKeySource: fileConfig.openrouterApiKey ? 'file' : (process.env.OPENROUTER_API_KEY ? 'env' : 'none'),
     geminiApiKey: fileConfig.geminiApiKey || process.env.GEMINI_API_KEY || '',
     geminiApiKeySource: fileConfig.geminiApiKey ? 'file' : (process.env.GEMINI_API_KEY ? 'env' : 'none'),
+    openaiApiKey: fileConfig.openaiApiKey || process.env.OPENAI_API_KEY || '',
+    openaiApiKeySource: fileConfig.openaiApiKey ? 'file' : (process.env.OPENAI_API_KEY ? 'env' : 'none'),
     models,
     adminPasswordHash,
     adminPasswordSalt
@@ -97,6 +100,7 @@ function saveConfig(partial) {
   const persisted = writeFileConfig({
     openrouterApiKey: next.openrouterApiKey,
     geminiApiKey: next.geminiApiKey,
+    openaiApiKey: next.openaiApiKey,
     models: next.models,
     adminPasswordHash: next.adminPasswordHash,
     adminPasswordSalt: next.adminPasswordSalt
@@ -104,7 +108,8 @@ function saveConfig(partial) {
   cache = {
     ...next,
     apiKeySource: next.openrouterApiKey ? (persisted ? 'file' : 'memory') : (process.env.OPENROUTER_API_KEY ? 'env' : 'none'),
-    geminiApiKeySource: next.geminiApiKey ? (persisted ? 'file' : 'memory') : (process.env.GEMINI_API_KEY ? 'env' : 'none')
+    geminiApiKeySource: next.geminiApiKey ? (persisted ? 'file' : 'memory') : (process.env.GEMINI_API_KEY ? 'env' : 'none'),
+    openaiApiKeySource: next.openaiApiKey ? (persisted ? 'file' : 'memory') : (process.env.OPENAI_API_KEY ? 'env' : 'none')
   };
   return persisted;
 }

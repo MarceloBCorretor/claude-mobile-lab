@@ -24,12 +24,14 @@ projetos — o MultiIA é o primeiro/principal deles).
 ## 3. Modelos configurados
 
 Modelos de **Chat** (texto) são acessados via **OpenRouter** (`OPENROUTER_API_KEY`).
-Modelos de **Imagem/Vídeo** são acessados **diretamente na API do Gemini/Google AI
-Studio** (`GEMINI_API_KEY`) — ver seção 7 (Estúdio de Artes) para o motivo dessa troca.
-Todos editáveis em `/admin`. Cada modelo tem um campo **Tipo** (`kind`): `chat`,
-`image` ou `video` — controla em qual seção/seletor ele aparece e qual API é chamada.
+Modelos de **Imagem/Vídeo** são acessados **diretamente** na API do provedor
+correspondente — Gemini/Google AI Studio (`GEMINI_API_KEY`) ou OpenAI
+(`OPENAI_API_KEY`) — ver seção 7 (Estúdio de Artes). Todos editáveis em `/admin`.
+Cada modelo tem um campo **Tipo** (`kind`): `chat`, `image` ou `video` (controla
+em qual seção/seletor ele aparece) e, para imagem/vídeo, um campo **Provedor**
+(`provider`: `gemini` ou `openai`) que decide qual API/chave é usada.
 
-| Modelo | ID atual no admin | Tipo | API |
+| Modelo | ID atual no admin | Tipo | Provedor |
 |---|---|---|---|
 | GLM-5.2 | `z-ai/glm-5.2` | chat | OpenRouter |
 | Kimi K2.6 | `moonshotai/kimi-k2.6` | chat | OpenRouter |
@@ -38,6 +40,7 @@ Todos editáveis em `/admin`. Cada modelo tem um campo **Tipo** (`kind`): `chat`
 | MiniMax M2.7 | `minimax/minimax-m2.7` | chat | OpenRouter |
 | Nano Banana 2 Lite (rápido/barato) | `gemini-3.1-flash-lite-image` | image | Gemini direto |
 | Nano Banana 2 (qualidade) | `gemini-3.1-flash-image-preview` | image | Gemini direto |
+| GPT Image (OpenAI) | `gpt-image-1` | image | OpenAI direto |
 | Veo 3.1 Lite (rápido/barato) | `veo-3.1-lite-generate-preview` | video | Gemini direto |
 | Veo 3.1 Fast (qualidade) | `veo-3.1-fast-generate-preview` | video | Gemini direto |
 
@@ -60,6 +63,16 @@ Todos editáveis em `/admin`. Cada modelo tem um campo **Tipo** (`kind`): `chat`
 > ("Interactions API") sem exemplo de chamada HTTP crua disponível até o momento
 > da implementação, enquanto Veo 3.1 tem um contrato bem documentado
 > (`predictLongRunning` + polling). Decisão consciente de menor risco.
+>
+> **Segundo provedor de imagem (2026-07-05):** o usuário achou o GPT-Image da
+> OpenAI melhor que o Nano Banana pra infográficos/texto dentro da imagem e
+> pediu pra adicionar como opção — sem tirar o Gemini. Cada modelo de
+> imagem/vídeo agora tem um campo `provider` (`gemini`/`openai`) e
+> `server.js` despacha pra `src/gemini.js` ou `src/openai-images.js` conforme
+> o modelo escolhido, usando a chave correspondente. GPT-Image por enquanto só
+> aceita texto (a API de edição de imagem da OpenAI usa um endpoint diferente,
+> multipart, não implementado ainda) — anexar foto de referência com ele
+> selecionado é ignorado com um aviso claro na tela.
 
 **Geração de imagem/vídeo** vive em uma seção própria, separada do chat — ver
 seção 7 (Estúdio de Artes). Cada geração tem **custo real** na conta Gemini (vídeo
@@ -89,6 +102,7 @@ src/session.js                   # Sessão admin/chat via cookie assinado (HMAC-
 src/openrouter.js                 # Proxy de streaming (SSE) para a API de chat da OpenRouter
 src/conversation-store.js           # Memória de conversas — Postgres (Vercel) ou data/conversations.json (Node)
 src/gemini.js                         # Chamadas diretas a API do Gemini (imagem via generateContent, video via Veo/predictLongRunning) — ver seção 7
+src/openai-images.js                   # Chamadas diretas a API da OpenAI (POST /v1/images/generations, so imagem, so texto) — ver seção 7
 public/                               # Frontend estático (tudo servido por express.static)
   index.html                            # Chat, texto apenas (com login gate embutido, ver seção 6.1)
   admin.html                             # Painel administrador
@@ -114,6 +128,7 @@ data/conversations.json (gitignored)      # Histórico de conversas — idem, s�
 |---|---|---|
 | `OPENROUTER_API_KEY` | Autentica as chamadas de chat (texto) na OpenRouter | Vercel: Project Settings → Environment Variables. Hostinger: `.env` local ou painel `/admin` (persiste em `data/runtime-config.json`) |
 | `GEMINI_API_KEY` | Autentica as chamadas de imagem/vídeo direto na API do Gemini (Estúdio de Artes) — crie em https://aistudio.google.com/apikey | Idem acima (mesmo padrão de fallback env → painel `/admin` do `OPENROUTER_API_KEY`) |
+| `OPENAI_API_KEY` | Autentica as chamadas do modelo GPT Image (Estúdio de Artes) — crie em https://platform.openai.com/api-keys | Idem acima |
 | `ADMIN_PASSWORD` | Senha de login do `/admin` **e também do chat/estúdio** (hash é o que realmente é comparado) | Idem acima |
 | `SESSION_SECRET` | Segredo HMAC para assinar o cookie de sessão (chat + admin) | Idem acima |
 | `PORT` | Porta ao rodar `node server.js` localmente | `.env` local; ignorado na Vercel |
@@ -126,10 +141,11 @@ painel avisa isso claramente ao usuário.
 
 **Estado atual em produção:** `OPENROUTER_API_KEY`, `ADMIN_PASSWORD` e
 `SESSION_SECRET` já estavam configuradas na Vercel (senha e segredo gerados por
-script, não estão neste arquivo por segurança). `GEMINI_API_KEY` é nova (parte da
-troca de provedor de imagem/vídeo) — **precisa ser adicionada manualmente** em
-Project Settings → Environment Variables com a chave do Google AI Studio do
-usuário, e um redeploy (adicionar a variável sozinha não redeploya automático).
+script, não estão neste arquivo por segurança). `GEMINI_API_KEY` e
+`OPENAI_API_KEY` são novas (parte da troca/expansão de provedores de imagem/vídeo)
+— **precisam ser adicionadas manualmente** em Project Settings → Environment
+Variables com as chaves do Google AI Studio e da OpenAI do usuário, e um
+redeploy (adicionar a variável sozinha não redeploya automático).
 
 ## 6. Funcionalidades do frontend (`public/js/chat.js`)
 
@@ -277,27 +293,41 @@ de prompt e uma galeria de resultados (mais recente no topo).
   partir de uma selfie). `src/gemini.js` substitui o antigo `src/media-generation.js`
   (que chamava a API unificada da OpenRouter e foi removido).
 - Cada modelo continua tendo o campo `kind` (`chat`/`image`/`video`) em
-  `src/config-store.js`. `GET /api/models` (chat, via OpenRouter) e
-  `GET /api/models/media` (imagem+vídeo, via Gemini) seguem existindo como antes.
+  `src/config-store.js`, mais um campo `provider` (`gemini`/`openai`) pros de
+  imagem/vídeo. `GET /api/models` (chat, via OpenRouter) e
+  `GET /api/models/media` (imagem+vídeo, inclui o `provider` de cada um) seguem
+  existindo como antes; `server.js` despacha a geração pro módulo certo
+  (`src/gemini.js` ou `src/openai-images.js`) conforme o `provider` do modelo
+  escolhido.
 - **Upload de foto de referência:** botão 📎 no composer do Estúdio aceita até 3
   imagens, convertidas para base64 e mantidas anexadas entre gerações (não
   limpa sozinho a cada envio, já que o uso típico é gerar várias variações a
   partir da mesma foto). Para imagem, todas as referências viram `inline_data`
-  na requisição; para vídeo, só a primeira é usada como frame de referência.
-- **Biblioteca de ideias de prompt:** dropdown "📖 Ideias de prompt" com ~35
-  templates prontos, organizados em 3-4 categorias (via `<optgroup>`) e
+  na requisição (só modelos Gemini — GPT Image ainda não aceita referência, ver
+  abaixo); para vídeo, só a primeira é usada como frame de referência.
+- **Animar a imagem gerada (imagem → vídeo em sequência):** todo resultado de
+  imagem no Estúdio ganha um botão "🎬 Animar esta imagem" que troca a aba pra
+  Vídeo, usa a própria imagem gerada como foto de referência (mesmo mecanismo
+  do upload manual) e deixa o prompt pronto pra editar — monta o fluxo
+  "gerar uma cena estática, depois pedir pra animar essa mesma cena" que o
+  usuário pediu, sem precisar baixar/reanexar a imagem manualmente.
+- **Biblioteca de ideias de prompt:** dropdown "📖 Ideias de prompt" com ~37
+  templates prontos, organizados em categorias (via `<optgroup>`) e
   **filtrados pelo tipo ativo** (`kind: 'image'`/`'video'`/`'both'` em cada
   item): "Ensaios com foto de referência" (o conjunto original, casal/retrato),
   "Animação/ilustração (Nano Banana)" (Pixar, Ghibli, flat design, claymation,
   low poly, cyberpunk, cel shading, aquarela, papercraft, sketch arquitetônico
   — só imagem), "Cinematográfico (vídeo)" (slow motion, hyper-lapse, macro,
   drone fly-through, loop 3D, tipografia cinética, parallax, partículas,
-  tracking shot, time-lapse — só vídeo) e "Profissional/publicitário" (outdoor,
+  tracking shot, time-lapse — só vídeo), "Profissional/publicitário" (outdoor,
   mockup, double exposure, flat lay, isométrico, split screen, neon,
-  chiaroscuro, infográfico, lifestyle — aparece nas duas abas, `kind: 'both'`).
-  Mesmo padrão das "Técnicas de estudo" do chat (seção 6): insere o texto no
-  campo de prompt pronto pra editar, não é um array gerenciável pelo admin —
-  pra adicionar mais ideias, edite o array `PROMPT_LIBRARY` em
+  chiaroscuro, infográfico, lifestyle — aparece nas duas abas, `kind: 'both'`)
+  e "Infográficos" (estilo revista com painéis + personagem especialista, e
+  vista explodida técnica com dados reais tipo desenho de engenharia — só
+  imagem, adaptado de um tutorial de infográficos com IA fornecido pelo
+  usuário). Mesmo padrão das "Técnicas de estudo" do chat (seção 6): insere o
+  texto no campo de prompt pronto pra editar, não é um array gerenciável pelo
+  admin — pra adicionar mais ideias, edite o array `PROMPT_LIBRARY` em
   `public/js/studio.js` (cada item precisa de `id`, `kind`, `category`, `label`,
   `template`).
 - **Opções por tipo:**
@@ -321,7 +351,13 @@ de prompt e uma galeria de resultados (mais recente no topo).
     uma referência de arquivo (`uri`/`name`) à qual o servidor anexa
     `?key=GEMINI_API_KEY` pra ficar diretamente acessível pelo `<video src>`
     do navegador.
-  - Ambos exigem sessão autenticada (`session.requireAdmin`), igual ao resto do
+  - Imagem (GPT Image, OpenAI) — `POST https://api.openai.com/v1/images/generations`
+    com `{ model, prompt, size, n: 1 }` (tamanho mapeado a partir da proporção
+    escolhida: quadrado→1024x1024, paisagem→1536x1024, retrato→1024x1536, os
+    únicos tamanhos que a API aceita). Resposta em `data[].b64_json`, convertida
+    para `data:image/png;base64,...`. **Não aceita foto de referência ainda**
+    (exigiria o endpoint `/v1/images/edits`, multipart, não implementado).
+  - Todos exigem sessão autenticada (`session.requireAdmin`), igual ao resto do
     app.
 - **Preview em tela cheia**, mesmo padrão usado pro preview de código HTML no
   chat (seção 6.6): clicar na imagem/vídeo gerado abre um overlay
@@ -333,13 +369,15 @@ de prompt e uma galeria de resultados (mais recente no topo).
   (mesma decisão já tomada pra anexos de imagem no chat, pra não estourar cota
   de armazenamento com base64 grandes); baixe o que quiser guardar antes de
   recarregar a página.
-- **Modelos configurados:** duas opções de imagem — Nano Banana 2 Lite
-  (`gemini-3.1-flash-lite-image`, padrão: rápido e barato) e Nano Banana 2
-  (`gemini-3.1-flash-image-preview`, mais qualidade, o dobro do preço) — e duas
-  de vídeo, Veo 3.1 Lite (`veo-3.1-lite-generate-preview`, padrão, mais barato)
-  e Veo 3.1 Fast (`veo-3.1-fast-generate-preview`, mais qualidade) — ver tabela
-  da seção 3. Editável em `/admin` como qualquer outro modelo. MiniMax foi
-  removido das opções de vídeo (só continua existindo como modelo de **chat**,
+- **Modelos configurados:** três opções de imagem — Nano Banana 2 Lite
+  (`gemini-3.1-flash-lite-image`, padrão: rápido e barato), Nano Banana 2
+  (`gemini-3.1-flash-image-preview`, mais qualidade, o dobro do preço) e GPT
+  Image (`gpt-image-1`, OpenAI, melhor pra infográficos/texto dentro da
+  imagem segundo o usuário) — e duas de vídeo, Veo 3.1 Lite
+  (`veo-3.1-lite-generate-preview`, padrão, mais barato) e Veo 3.1 Fast
+  (`veo-3.1-fast-generate-preview`, mais qualidade) — ver tabela da seção 3.
+  Editável em `/admin` como qualquer outro modelo. MiniMax foi removido das
+  opções de vídeo (só continua existindo como modelo de **chat**,
   `minimax/minimax-m2.7`, isso não mudou).
 - **Gemini Omni Flash (vídeo) não foi implementado:** é o modelo que o usuário
   pediu originalmente, mas usa uma API novíssima do Gemini ("Interactions API",
@@ -349,6 +387,16 @@ de prompt e uma galeria de resultados (mais recente no topo).
   3.1** (Lite/Fast), que usa o padrão bem documentado `predictLongRunning` +
   polling. Trocar para Omni Flash mais tarde é possível assim que a API dele
   estiver melhor documentada.
+- **Conversa de voz ao vivo (OpenAI GPT-Realtime) — pedida, ainda não
+  implementada.** O usuário confirmou que quer o recurso completo (chamada de
+  voz bidirecional em tempo real com a IA), não uma narração simples de texto
+  em áudio. Isso é uma funcionalidade nova de verdade, bem diferente do padrão
+  "digita um prompt, recebe um arquivo" do resto do Estúdio: exige sessão
+  WebRTC entre o navegador e a OpenAI, um endpoint novo no servidor pra emitir
+  um token efêmero de sessão (`POST /v1/realtime/sessions`, a chave real nunca
+  vai pro navegador), captura de microfone (`getUserMedia`) e uma tela de "em
+  chamada" própria. Vai ser tratado como uma etapa separada de planejamento e
+  implementação, não algo para encaixar de forma apressada.
 - **Testado com respostas mockadas** (Playwright, sem gastar crédito real) antes
   do primeiro deploy, e depois **confirmado com chamadas reais** (2026-07-05):
   - **Imagem: funcionando, incluindo referência.** Nano Banana 2 gerou
@@ -379,10 +427,10 @@ de prompt e uma galeria de resultados (mais recente no topo).
 
 - Login por senha (`POST /api/admin/login`), sessão via cookie `admin_session`
   assinado com HMAC (`src/session.js`), válido por 12h.
-- Mostra se as chaves da OpenRouter (chat) e do Gemini (Estúdio de Artes) estão
-  configuradas (e a origem: variável de ambiente ou arquivo local/painel) —
-  nunca expõe o valor das chaves já salvas. Duas seções separadas, um campo
-  para cada.
+- Mostra se as chaves da OpenRouter (chat), do Gemini e da OpenAI (Estúdio de
+  Artes) estão configuradas (e a origem: variável de ambiente ou arquivo
+  local/painel) — nunca expõe o valor das chaves já salvas. Três seções
+  separadas, um campo para cada.
 - **Confirmação visual ao salvar:** toda ação de salvar (chave OpenRouter,
   chave Gemini, modelos, senha) mostra um toast fixo no topo da tela
   ("✅ ... salva com sucesso") por ~2.5s, além do texto de feedback já existente
@@ -390,8 +438,10 @@ de prompt e uma galeria de resultados (mais recente no topo).
   não dar pra confirmar se salvou antes de navegar pra outra tela (reportado
   pelo usuário ao usar o botão voltar do navegador logo depois de salvar).
 - Tabela de modelos: habilitar/desabilitar, editar ID e nome exibido, escolher
-  o **Tipo** (Chat / Imagem / Vídeo — ver seção 7), adicionar ou remover
-  linhas.
+  o **Tipo** (Chat / Imagem / Vídeo) e o **Provedor** (Gemini / OpenAI — só
+  relevante pra Imagem/Vídeo; o seletor fica desabilitado quando o Tipo é
+  Chat, já que chat sempre usa a OpenRouter) — ver seção 7. Adicionar ou
+  remover linhas.
 - Troca de senha do admin (exige senha atual).
 - Banner de aviso diferenciado por plataforma: na Vercel, deixa claro que
   alterações feitas ali só duram até o próximo cold start/deploy (recomenda usar
@@ -457,7 +507,8 @@ de prompt e uma galeria de resultados (mais recente no topo).
 | #11 | Fix imagem quebrada + Estúdio de Artes separado | Troca `minimax/image-01` (inexistente) por Nano Banana 2 via OpenRouter, opções de resolução/duração pro vídeo, geração de imagem/vídeo removida do chat e movida pra `/studio.html` com preview em tela cheia |
 | #12 | Nano Banana 2 Lite como padrão | Adiciona Nano Banana 2 Lite (mais barato/rápido) como opção padrão de imagem via OpenRouter |
 | #13 | Estúdio de Artes: API direta do Gemini | `src/gemini.js` substitui `src/media-generation.js`, `GEMINI_API_KEY` + campo no admin, MiniMax removido do vídeo, Veo 3.1 (Lite/Fast) no lugar de Omni Flash, upload de foto de referência e biblioteca de ideias de prompt no Estúdio |
-| #14 (a caminho) | Toast de confirmação no admin + biblioteca de prompts ampliada + detecção de filtro de conteúdo | Toast + flash no botão ao salvar chaves/modelos/senha, ~27 novos templates de prompt (animação/ilustração, cinematográfico, publicitário) filtrados por tipo, `pollVideoJob` detecta bloqueio por política de conteúdo do Gemini |
+| #14 | Toast de confirmação no admin + biblioteca de prompts ampliada + detecção de filtro de conteúdo | Toast + flash no botão ao salvar chaves/modelos/senha, ~27 novos templates de prompt (animação/ilustração, cinematográfico, publicitário) filtrados por tipo, `pollVideoJob` detecta bloqueio por política de conteúdo do Gemini |
+| #15 (a caminho) | GPT Image (OpenAI) + animar imagem gerada + infográficos | `src/openai-images.js`, campo `provider` nos modelos, `OPENAI_API_KEY` + campo no admin, botão "Animar esta imagem" (imagem → vídeo), 2 templates de infográfico (estilo revista, vista explodida) |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
@@ -494,13 +545,21 @@ sobre um PR já mesclado).
   decisão de não guardar base64 grandes já aplicada a anexos de imagem no chat)
   — o usuário precisa baixar o que quiser guardar. Fotos de referência anexadas
   também se perdem ao recarregar a página (ficam só na memória da aba aberta).
-- **Requer `GEMINI_API_KEY` configurada** (env var ou painel `/admin`) para o
-  Estúdio de Artes funcionar — sem isso, toda geração retorna 503 "Chave do
-  Gemini não configurada".
+- **Requer `GEMINI_API_KEY` e/ou `OPENAI_API_KEY` configuradas** (env var ou
+  painel `/admin`) conforme os modelos habilitados — sem a chave do provedor
+  certo, a geração retorna 503 com o nome da chave que falta.
 - Gemini Omni Flash (vídeo) não foi implementado — usa uma API novíssima
   ("Interactions API") sem exemplo de chamada HTTP crua disponível; Veo 3.1 foi
   usado no lugar por ter um contrato mais bem documentado. Reavaliar Omni Flash
   quando a documentação/exemplos da Interactions API amadurecerem.
+- **GPT Image (OpenAI) não aceita foto de referência ainda** — só gera a
+  partir de texto. Anexar uma referência com ele selecionado mostra um aviso e
+  a referência é ignorada (não é enviada à API). Implementar isso exigiria o
+  endpoint `/v1/images/edits` (multipart), fora do escopo desta rodada.
+- **Conversa de voz ao vivo (GPT-Realtime) foi pedida mas ainda não
+  implementada** — é uma funcionalidade nova e maior (sessão WebRTC ao vivo,
+  não um "gerador" como o resto do Estúdio), tratada como uma etapa própria de
+  planejamento/implementação. Ver nota detalhada no fim da seção 7.
 - A biblioteca de ideias de prompt do Estúdio (seção 7) é uma lista fixa no
   código (`PROMPT_LIBRARY` em `studio.js`), não gerenciável pelo admin — expandir
   a lista exige editar o arquivo.

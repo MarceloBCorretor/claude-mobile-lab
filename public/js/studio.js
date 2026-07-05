@@ -280,6 +280,26 @@
       template: 'Um cliente relaxando e sorrindo na sacada de um apartamento de luxo, segurando uma taca de '
         + 'vinho, com a cidade iluminada ao fundo. Fotografia de estilo de vida comercial, cores quentes de '
         + 'golden hour, transmite sucesso e tranquilidade, imagem de altissima qualidade.'
+    },
+
+    // --- Infograficos (metodo "estilo revista" e "vista explodida") ---
+    {
+      id: 'info-magazine', kind: 'image', category: 'Infograficos',
+      label: '📰 Infografico estilo revista',
+      template: 'Crie um infografico estilo revista sobre [tema], com uma imagem central renderizada em 3D, '
+        + 'titulo principal em destaque, de 4 a 6 paineis informativos ao redor explicando os elementos, '
+        + 'incluindo um pequeno personagem especialista (ex: cientista) apresentando o conteudo ao lado da '
+        + 'imagem principal, e uma barra de rodape com informacoes adicionais relevantes. Use uma cor de '
+        + 'destaque (acento) consistente em todo o design.'
+    },
+    {
+      id: 'info-exploded', kind: 'image', category: 'Infograficos',
+      label: '🔧 Infografico de vista explodida (tecnico)',
+      template: 'Crie uma infografia de vista explodida tecnica de [objeto], estilo desenho tecnico '
+        + 'educacional. Mostre as pecas separadas e conectadas por linhas finas numeradas, um quadro "DADOS '
+        + 'TECNICOS" a direita com especificacoes reais e verificaveis do objeto (nao invente numeros), uma '
+        + 'miniatura "MONTAGEM FINAL" no canto inferior esquerdo, e uma sequencia de montagem na parte '
+        + 'inferior. Fundo escuro, resolucao alta, aviso discreto de "uso educativo" no canto.'
     }
   ];
 
@@ -568,7 +588,28 @@
       a.innerHTML = '⬇ <span>Abrir/Baixar</span>';
       actions.appendChild(a);
     });
+    if (kind === 'image' && urls[0]) {
+      const animateBtn = document.createElement('button');
+      animateBtn.className = 'code-action-btn primary';
+      animateBtn.innerHTML = '🎬 <span>Animar esta imagem</span>';
+      animateBtn.addEventListener('click', () => animateImage(urls[0]));
+      actions.appendChild(animateBtn);
+    }
     card.appendChild(actions);
+  }
+
+  // Envia a imagem gerada como referencia de video, pra criar uma sequencia
+  // imagem -> video sem precisar baixar e reanexar manualmente.
+  function animateImage(url) {
+    activeKind = 'video';
+    kindToggle.querySelectorAll('.kind-btn').forEach((b) => b.classList.toggle('active', b.dataset.kind === 'video'));
+    renderModelSelect();
+    referenceImages = [{ name: 'imagem-gerada.png', dataUrl: url }];
+    renderAttachments();
+    promptInput.value = 'Anime esta imagem com um movimento de camera suave e natural e iluminacao consistente.';
+    promptInput.focus();
+    promptInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showBanner('ok', 'Imagem enviada como referencia de video - edite o prompt e gere.');
   }
 
   function renderErrorCard(card, message) {
@@ -589,8 +630,13 @@
       showBanner('warn', 'Nenhum modelo habilitado para esse tipo de geracao.');
       return;
     }
-    const modelLabel = mediaModels.find((m) => m.id === modelId)?.label || modelId;
+    const selectedModel = mediaModels.find((m) => m.id === modelId);
+    const modelLabel = selectedModel?.label || modelId;
     const kind = activeKind;
+
+    if (kind === 'image' && selectedModel?.provider === 'openai' && referenceImages.length) {
+      showBanner('warn', 'O modelo GPT Image ainda nao usa fotos de referencia anexadas - gerando so a partir do texto.');
+    }
 
     sendBtn.disabled = true;
     const card = addPendingCard(kind === 'video' ? 'Gerando video... isso pode levar alguns minutos.' : 'Gerando imagem...');
@@ -598,10 +644,11 @@
     try {
       if (kind === 'image') {
         const aspectRatio = document.getElementById('aspectRatioSelect')?.value;
+        const useReferences = selectedModel?.provider !== 'openai';
         const res = await fetch('/api/generate/image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ modelId, prompt, aspectRatio, referenceImages: referenceImages.map((r) => r.dataUrl) })
+          body: JSON.stringify({ modelId, prompt, aspectRatio, referenceImages: useReferences ? referenceImages.map((r) => r.dataUrl) : [] })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);

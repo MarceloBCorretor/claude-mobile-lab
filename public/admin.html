@@ -56,11 +56,24 @@
   </div>
 
   <div class="card glass">
+    <h2>Chave de API (OpenAI / GPT)</h2>
+    <div class="sub" style="margin-bottom:12px;">Usada pelo Estudio de Artes (modelo GPT Image). Crie em <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a>.</div>
+    <div class="field">
+      <label id="openaiKeyStatusLabel">Status</label>
+      <div class="row">
+        <input type="password" id="openaiKeyInput" placeholder="sk-..." autocomplete="off" />
+        <button class="primary-btn" id="saveOpenaiKeyBtn" style="flex:0 0 auto;">Salvar chave</button>
+      </div>
+    </div>
+    <div class="msg-feedback" id="openaiKeyFeedback"></div>
+  </div>
+
+  <div class="card glass">
     <h2>Modelos abertos habilitados</h2>
-    <div class="sub" style="margin-bottom:12px;">Modelos de Chat usam a chave da OpenRouter. Modelos de Imagem/Video usam a chave do Gemini e tem custo por geracao.</div>
+    <div class="sub" style="margin-bottom:12px;">Modelos de Chat usam a chave da OpenRouter. Modelos de Imagem/Video usam a chave do Gemini ou da OpenAI (conforme o Provedor) e tem custo por geracao.</div>
     <table class="models-table">
       <thead>
-        <tr><th>Ativo</th><th>ID do modelo</th><th>Nome exibido</th><th>Tipo</th><th></th></tr>
+        <tr><th>Ativo</th><th>ID do modelo</th><th>Nome exibido</th><th>Tipo</th><th>Provedor</th><th></th></tr>
       </thead>
       <tbody id="modelsBody"></tbody>
     </table>
