@@ -31,6 +31,7 @@
 
   <div class="card glass">
     <h2>Chave de API (OpenRouter)</h2>
+    <div class="sub" style="margin-bottom:12px;">Usada pelos modelos de Chat (texto).</div>
     <div class="field">
       <label id="apiKeyStatusLabel">Status</label>
       <div class="row">
@@ -42,11 +43,24 @@
   </div>
 
   <div class="card glass">
+    <h2>Chave de API (Gemini / Google AI Studio)</h2>
+    <div class="sub" style="margin-bottom:12px;">Usada pelo Estudio de Artes (geracao de imagem e video). Crie em <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.</div>
+    <div class="field">
+      <label id="geminiKeyStatusLabel">Status</label>
+      <div class="row">
+        <input type="password" id="geminiKeyInput" placeholder="AIza..." autocomplete="off" />
+        <button class="primary-btn" id="saveGeminiKeyBtn" style="flex:0 0 auto;">Salvar chave</button>
+      </div>
+    </div>
+    <div class="msg-feedback" id="geminiKeyFeedback"></div>
+  </div>
+
+  <div class="card glass">
     <h2>Modelos abertos habilitados</h2>
-    <div class="sub" style="margin-bottom:12px;">Imagem e video tem custo por geracao na sua conta OpenRouter (bem maior que texto).</div>
+    <div class="sub" style="margin-bottom:12px;">Modelos de Chat usam a chave da OpenRouter. Modelos de Imagem/Video usam a chave do Gemini e tem custo por geracao.</div>
     <table class="models-table">
       <thead>
-        <tr><th>Ativo</th><th>ID do modelo (slug OpenRouter)</th><th>Nome exibido</th><th>Tipo</th><th></th></tr>
+        <tr><th>Ativo</th><th>ID do modelo</th><th>Nome exibido</th><th>Tipo</th><th></th></tr>
       </thead>
       <tbody id="modelsBody"></tbody>
     </table>

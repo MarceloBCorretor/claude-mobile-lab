@@ -1,7 +1,71 @@
 (() => {
   const ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4'];
-  const VIDEO_RESOLUTIONS = ['768p', '1080p'];
-  const VIDEO_DURATIONS = ['6s', '10s'];
+  const VIDEO_RESOLUTIONS = ['720p', '1080p'];
+  const MAX_REFERENCE_IMAGES = 3;
+
+  // Ideias de prompt prontas (adaptadas de um tutorial de ensaio fotografico
+  // com Gemini) - inserem o texto no campo de prompt para o usuario editar,
+  // mesmo padrao das "Tecnicas de estudo" do chat. Funcionam melhor com uma
+  // foto de referencia anexada (botao 📎 abaixo).
+  const PROMPT_LIBRARY = [
+    {
+      id: 'restore-photo',
+      label: '🖼️ Restaurar foto antiga',
+      template: 'Restaure esta foto antiga anexada. Mantenha a autenticidade dos rostos e expressoes originais '
+        + '(sem alterar as feicoes). Remova arranhoes, manchas e sinais de desgaste, aumente nitidez e resolucao, '
+        + 'otimize a iluminacao para um visual natural, ajuste contraste e cores de forma realista (colorize se '
+        + 'for preto e branco, mantendo tons de epoca), suavize a pele sem parecer artificial, e mantenha a '
+        + 'composicao original.'
+    },
+    {
+      id: 'couple-beach',
+      label: '🌊 Ensaio romantico na praia',
+      template: 'Use a foto anexada como referencia exata dos rostos e poses; nao altere nossas feicoes. Crie uma '
+        + 'cena de nos dois em uma praia deserta ao entardecer, olhando um para o outro, iluminacao suave e '
+        + 'intimista. Respeite a proporcao e a composicao da foto base.'
+    },
+    {
+      id: 'couple-studio',
+      label: '🖤 Retrato de casal em estudio',
+      template: 'Use a foto anexada como referencia exata dos rostos; nao altere as feicoes. Crie um retrato '
+        + 'profissional ultra-realista de estudio, casal abracado, iluminacao suave, fundo neutro, estetica '
+        + 'moderna e clean, alta definicao.'
+    },
+    {
+      id: 'couple-bw',
+      label: '🤍 Retrato fine art em P&B',
+      template: 'Use a foto anexada como referencia exata dos rostos; nao altere tracos faciais. Crie um retrato '
+        + 'de estudio em preto e branco, estilo fine art, pose intima e serena, iluminacao suave e difusa, fundo '
+        + 'escuro solido, atmosfera atemporal e emocional.'
+    },
+    {
+      id: 'flowers-field',
+      label: '🌻 Ensaio em campo de flores',
+      template: 'Use a foto anexada como referencia exata dos rostos; preserve todos os tracos faciais. Crie um '
+        + 'ensaio romantico em um campo vibrante de flores, iluminacao suave e neblina eterea, atmosfera alegre '
+        + 'e natural, estilo cinematografico.'
+    },
+    {
+      id: 'urban-rain',
+      label: '🌃 Rua chuvosa a noite',
+      template: 'Use a foto anexada como referencia exata dos rostos e poses; nao altere nenhuma feicao. Crie uma '
+        + 'cena cinematografica em uma rua a noite sob chuva leve, reflexos de luzes de neon no chao molhado, '
+        + 'atmosfera romantica e moderna.'
+    },
+    {
+      id: 'dramatic-angles',
+      label: '🎬 Angulos dramaticos (4 estilos)',
+      template: 'Transforme a foto anexada em um conjunto de 4 estilos fotorrealistas e cinematograficos, cada '
+        + 'um com um angulo de camera dinamico e diferente, mantendo a mesma pessoa/pessoas e o ambiente original '
+        + 'expandido, com iluminacao cinematografica e cores de alto contraste.'
+    },
+    {
+      id: 'animate-scene',
+      label: '🎥 Animar a cena (video)',
+      template: 'Anime esta cena mantendo os rostos e roupas fieis a imagem de referencia anexada, com um '
+        + 'movimento de camera suave e natural e iluminacao consistente com a foto original.'
+    }
+  ];
 
   const loginShell = document.getElementById('loginShell');
   const appShell = document.getElementById('appShell');
@@ -12,14 +76,19 @@
   const kindToggle = document.getElementById('kindToggle');
   const studioModelSelect = document.getElementById('studioModelSelect');
   const studioOptions = document.getElementById('studioOptions');
+  const promptLibrarySelect = document.getElementById('promptLibrarySelect');
   const studioGallery = document.getElementById('studioGallery');
   const emptyState = document.getElementById('emptyState');
   const mainContent = document.getElementById('mainContent');
   const promptInput = document.getElementById('promptInput');
   const sendBtn = document.getElementById('sendBtn');
+  const attachBtn = document.getElementById('attachBtn');
+  const fileInput = document.getElementById('fileInput');
+  const attachmentsRow = document.getElementById('attachmentsRow');
 
   let mediaModels = [];
   let activeKind = 'image';
+  let referenceImages = []; // [{ name, dataUrl }]
 
   function escapeHtml(str) {
     return str.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -83,6 +152,61 @@
     if (e.key === 'Enter') loginBtn.click();
   });
 
+  // --- Prompt library -------------------------------------------------------
+
+  promptLibrarySelect.innerHTML += PROMPT_LIBRARY.map((p) => `<option value="${p.id}">${escapeHtml(p.label)}</option>`).join('');
+  promptLibrarySelect.addEventListener('change', () => {
+    const item = PROMPT_LIBRARY.find((p) => p.id === promptLibrarySelect.value);
+    if (!item) return;
+    promptInput.value = item.template;
+    promptInput.focus();
+    promptLibrarySelect.value = '';
+  });
+
+  // --- Reference image upload ------------------------------------------------
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderAttachments() {
+    attachmentsRow.innerHTML = '';
+    referenceImages.forEach((ref, idx) => {
+      const chip = document.createElement('div');
+      chip.className = 'attachment-chip';
+      chip.innerHTML = `<img src="${ref.dataUrl}" alt="" /><span class="name">${escapeHtml(ref.name)}</span>`;
+      const rm = document.createElement('button');
+      rm.textContent = '✕';
+      rm.title = 'Remover referencia';
+      rm.addEventListener('click', () => {
+        referenceImages.splice(idx, 1);
+        renderAttachments();
+      });
+      chip.appendChild(rm);
+      attachmentsRow.appendChild(chip);
+    });
+  }
+
+  attachBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const files = Array.from(fileInput.files || []).slice(0, MAX_REFERENCE_IMAGES - referenceImages.length);
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
+      const dataUrl = await readFileAsDataUrl(file);
+      referenceImages.push({ name: file.name, dataUrl });
+    }
+    fileInput.value = '';
+    renderAttachments();
+    if (referenceImages.length) {
+      showBanner('ok', `${referenceImages.length} foto(s) de referencia anexada(s).`);
+    }
+  });
+
   // --- Models / kind toggle --------------------------------------------------
 
   async function loadModels() {
@@ -94,7 +218,7 @@
       if (!mediaModels.length) {
         showBanner('warn', 'Nenhum modelo de imagem/video habilitado. Configure em /admin.');
       } else {
-        showBanner('ok', `${mediaModels.length} modelo(s) de imagem/video via OpenRouter`);
+        showBanner('ok', `${mediaModels.length} modelo(s) de imagem/video via Gemini`);
       }
     } catch {
       showBanner('warn', 'Nao foi possivel carregar a lista de modelos.');
@@ -118,20 +242,15 @@
     } else {
       studioOptions.innerHTML = `
         <label class="studio-option">
-          Resolucao
-          <select id="resolutionSelect">${VIDEO_RESOLUTIONS.map((r) => `<option value="${r}">${r}</option>`).join('')}</select>
+          Proporcao
+          <select id="aspectRatioSelect">${ASPECT_RATIOS.map((r) => `<option value="${r}">${r}</option>`).join('')}</select>
         </label>
         <label class="studio-option">
-          Duracao
-          <select id="durationSelect">${VIDEO_DURATIONS.map((d) => `<option value="${d}">${d}</option>`).join('')}</select>
+          Resolucao
+          <select id="resolutionSelect">${VIDEO_RESOLUTIONS.map((r) => `<option value="${r}">${r}</option>`).join('')}</select>
         </label>`;
-      const resolutionSelect = document.getElementById('resolutionSelect');
-      const durationSelect = document.getElementById('durationSelect');
-      // Hailuo 2.3 only supports 10s clips at 768p (1080p tops out at 6s).
-      resolutionSelect.addEventListener('change', () => {
-        if (resolutionSelect.value === '1080p') durationSelect.value = '6s';
-      });
     }
+    studioOptions.appendChild(promptLibrarySelect);
   }
 
   kindToggle.addEventListener('click', (e) => {
@@ -256,19 +375,19 @@
         const res = await fetch('/api/generate/image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ modelId, prompt, aspectRatio })
+          body: JSON.stringify({ modelId, prompt, aspectRatio, referenceImages: referenceImages.map((r) => r.dataUrl) })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
         if (!data.images || !data.images.length) throw new Error('Nenhuma imagem retornada.');
         renderResultCard(card, { kind, urls: data.images, prompt, modelLabel });
       } else {
+        const aspectRatio = document.getElementById('aspectRatioSelect')?.value;
         const resolution = document.getElementById('resolutionSelect')?.value;
-        const duration = document.getElementById('durationSelect')?.value;
         const startRes = await fetch('/api/generate/video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ modelId, prompt, resolution, duration })
+          body: JSON.stringify({ modelId, prompt, aspectRatio, resolution, referenceImage: referenceImages[0]?.dataUrl })
         });
         const job = await startRes.json();
         if (!startRes.ok) throw new Error(job.error || `Erro ${startRes.status}`);

@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>MultiIA - Estúdio de Artes</title>
-<meta name="description" content="Geração de imagem e vídeo com IA via OpenRouter" />
+<meta name="description" content="Geração de imagem e vídeo com IA (Gemini / Google AI Studio)" />
 <meta name="theme-color" content="#0e0a16" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -46,19 +46,26 @@
         <div class="studio-gallery" id="studioGallery">
           <div class="empty-state" id="emptyState">
             <h1>Estúdio de Artes</h1>
-            <p>Gere imagens e vídeos com IA via OpenRouter. Cada geração tem custo real na sua conta - os
-            resultados não ficam salvos após recarregar a página, baixe o que quiser guardar.</p>
+            <p>Gere imagens e vídeos com IA (Gemini/Nano Banana + Veo). Cada geração tem custo real na sua conta -
+            os resultados não ficam salvos após recarregar a página, baixe o que quiser guardar.</p>
           </div>
         </div>
       </div>
 
       <div class="composer">
-        <div class="studio-options" id="studioOptions"></div>
+        <div class="attachments-row" id="attachmentsRow"></div>
+        <div class="studio-options" id="studioOptions">
+          <select id="promptLibrarySelect">
+            <option value="">📖 Ideias de prompt</option>
+          </select>
+        </div>
         <div class="composer-inner glass">
+          <button class="attach-btn" id="attachBtn" title="Anexar foto de referencia">📎</button>
+          <input type="file" id="fileInput" accept="image/*" multiple hidden />
           <textarea id="promptInput" rows="2" placeholder="Descreva a imagem ou o vídeo que você quer gerar..."></textarea>
           <button class="send-btn" id="sendBtn" title="Gerar">➤</button>
         </div>
-        <div class="hint">As gerações têm custo real na conta OpenRouter e podem levar alguns minutos (vídeo).</div>
+        <div class="hint">As gerações têm custo real na conta do Gemini e podem levar alguns minutos (vídeo).</div>
       </div>
     </div>
 
