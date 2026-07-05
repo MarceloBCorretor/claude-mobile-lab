@@ -4,7 +4,7 @@ const store = require('./src/config-store');
 const session = require('./src/session');
 const conversationStore = require('./src/conversation-store');
 const { streamChatCompletion } = require('./src/openrouter');
-const { generateImage, createVideoJob, pollVideoJob } = require('./src/media-generation');
+const { generateImage, createVideoJob, pollVideoJob } = require('./src/gemini');
 
 const app = express();
 
@@ -57,56 +57,56 @@ app.post('/api/chat', session.requireAdmin, async (req, res) => {
   }
 });
 
-// --- Image/video generation (OpenRouter) ---------------------------------
+// --- Image/video generation (direto na API do Gemini/Google AI Studio) ---
 
 app.post('/api/generate/image', session.requireAdmin, async (req, res) => {
-  const { modelId, prompt, aspectRatio } = req.body || {};
+  const { modelId, prompt, aspectRatio, referenceImages } = req.body || {};
   if (!modelId || typeof prompt !== 'string' || !prompt.trim()) {
     return res.status(400).json({ error: 'modelId e prompt sao obrigatorios' });
   }
   const config = store.getConfig();
   const model = store.getEnabledModels('image').find((m) => m.id === modelId);
   if (!model) return res.status(400).json({ error: 'Modelo de imagem nao habilitado' });
-  if (!config.openrouterApiKey) {
-    return res.status(503).json({ error: 'Chave da OpenRouter nao configurada. Peca ao administrador para configura-la em /admin.' });
+  if (!config.geminiApiKey) {
+    return res.status(503).json({ error: 'Chave do Gemini (Google AI Studio) nao configurada. Peca ao administrador para configura-la em /admin.' });
   }
   try {
-    const result = await generateImage({ apiKey: config.openrouterApiKey, model: modelId, prompt, aspectRatio });
+    const result = await generateImage({ apiKey: config.geminiApiKey, model: modelId, prompt, aspectRatio, referenceImages });
     res.json(result);
   } catch (err) {
-    res.status(err.status || 502).json({ error: 'Falha ao gerar imagem', details: err.message });
+    res.status(err.status || 502).json({ error: err.message || 'Falha ao gerar imagem' });
   }
 });
 
 app.post('/api/generate/video', session.requireAdmin, async (req, res) => {
-  const { modelId, prompt, aspectRatio, duration, resolution } = req.body || {};
+  const { modelId, prompt, aspectRatio, resolution, referenceImage } = req.body || {};
   if (!modelId || typeof prompt !== 'string' || !prompt.trim()) {
     return res.status(400).json({ error: 'modelId e prompt sao obrigatorios' });
   }
   const config = store.getConfig();
   const model = store.getEnabledModels('video').find((m) => m.id === modelId);
   if (!model) return res.status(400).json({ error: 'Modelo de video nao habilitado' });
-  if (!config.openrouterApiKey) {
-    return res.status(503).json({ error: 'Chave da OpenRouter nao configurada. Peca ao administrador para configura-la em /admin.' });
+  if (!config.geminiApiKey) {
+    return res.status(503).json({ error: 'Chave do Gemini (Google AI Studio) nao configurada. Peca ao administrador para configura-la em /admin.' });
   }
   try {
-    const job = await createVideoJob({ apiKey: config.openrouterApiKey, model: modelId, prompt, aspectRatio, duration, resolution });
+    const job = await createVideoJob({ apiKey: config.geminiApiKey, model: modelId, prompt, aspectRatio, resolution, referenceImage });
     res.json(job);
   } catch (err) {
-    res.status(err.status || 502).json({ error: 'Falha ao iniciar geracao de video', details: err.message });
+    res.status(err.status || 502).json({ error: err.message || 'Falha ao iniciar geracao de video' });
   }
 });
 
-app.get('/api/generate/video/:jobId', session.requireAdmin, async (req, res) => {
+app.get('/api/generate/video/:jobId(.*)', session.requireAdmin, async (req, res) => {
   const config = store.getConfig();
-  if (!config.openrouterApiKey) {
-    return res.status(503).json({ error: 'Chave da OpenRouter nao configurada.' });
+  if (!config.geminiApiKey) {
+    return res.status(503).json({ error: 'Chave do Gemini (Google AI Studio) nao configurada.' });
   }
   try {
-    const status = await pollVideoJob({ apiKey: config.openrouterApiKey, jobId: req.params.jobId });
+    const status = await pollVideoJob({ apiKey: config.geminiApiKey, jobId: req.params.jobId });
     res.json(status);
   } catch (err) {
-    res.status(err.status || 502).json({ error: 'Falha ao consultar status do video', details: err.message });
+    res.status(err.status || 502).json({ error: err.message || 'Falha ao consultar status do video' });
   }
 });
 
@@ -153,16 +153,21 @@ app.get('/api/admin/config', session.requireAdmin, (_req, res) => {
     persistent: store.isPersistent(),
     apiKeyConfigured: Boolean(config.openrouterApiKey),
     apiKeySource: config.apiKeySource,
+    geminiApiKeyConfigured: Boolean(config.geminiApiKey),
+    geminiApiKeySource: config.geminiApiKeySource,
     models: config.models
   });
 });
 
 app.post('/api/admin/config', session.requireAdmin, (req, res) => {
-  const { apiKey, models } = req.body || {};
+  const { apiKey, geminiApiKey, models } = req.body || {};
   const patch = {};
 
   if (typeof apiKey === 'string' && apiKey.trim()) {
     patch.openrouterApiKey = apiKey.trim();
+  }
+  if (typeof geminiApiKey === 'string' && geminiApiKey.trim()) {
+    patch.geminiApiKey = geminiApiKey.trim();
   }
   if (Array.isArray(models)) {
     const cleaned = models
@@ -183,6 +188,7 @@ app.post('/api/admin/config', session.requireAdmin, (req, res) => {
     persisted,
     platform: store.getPlatform(),
     apiKeyConfigured: Boolean(config.openrouterApiKey),
+    geminiApiKeyConfigured: Boolean(config.geminiApiKey),
     models: config.models
   });
 });

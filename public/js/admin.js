@@ -9,6 +9,10 @@
   const apiKeyStatusLabel = document.getElementById('apiKeyStatusLabel');
   const saveKeyBtn = document.getElementById('saveKeyBtn');
   const keyFeedback = document.getElementById('keyFeedback');
+  const geminiKeyInput = document.getElementById('geminiKeyInput');
+  const geminiKeyStatusLabel = document.getElementById('geminiKeyStatusLabel');
+  const saveGeminiKeyBtn = document.getElementById('saveGeminiKeyBtn');
+  const geminiKeyFeedback = document.getElementById('geminiKeyFeedback');
   const modelsBody = document.getElementById('modelsBody');
   const addModelBtn = document.getElementById('addModelBtn');
   const saveModelsBtn = document.getElementById('saveModelsBtn');
@@ -68,13 +72,17 @@
     showAdmin();
 
     if (data.platform === 'vercel') {
-      platformBanner.innerHTML = `<div class="banner warn">Rodando na Vercel: o sistema de arquivos e efemero. Para persistencia garantida da chave de API, defina <code>OPENROUTER_API_KEY</code> em Project Settings &rarr; Environment Variables e faca redeploy. Alteracoes feitas aqui valem apenas ate o proximo cold start/deploy.</div>`;
+      platformBanner.innerHTML = `<div class="banner warn">Rodando na Vercel: o sistema de arquivos e efemero. Para persistencia garantida das chaves de API, defina <code>OPENROUTER_API_KEY</code> e/ou <code>GEMINI_API_KEY</code> em Project Settings &rarr; Environment Variables e faca redeploy. Alteracoes feitas aqui valem apenas ate o proximo cold start/deploy.</div>`;
     } else {
       platformBanner.innerHTML = `<div class="banner info">Rodando em ambiente Node persistente (ex: Hostinger). As alteracoes salvas aqui sao gravadas em <code>data/runtime-config.json</code> no servidor.</div>`;
     }
 
     apiKeyStatusLabel.textContent = data.apiKeyConfigured
       ? `Configurada (origem: ${data.apiKeySource === 'env' ? 'variavel de ambiente' : 'painel admin'})`
+      : 'Nao configurada';
+
+    geminiKeyStatusLabel.textContent = data.geminiApiKeyConfigured
+      ? `Configurada (origem: ${data.geminiApiKeySource === 'env' ? 'variavel de ambiente' : 'painel admin'})`
       : 'Nao configurada';
 
     renderModelsTable(data.models || []);
@@ -130,6 +138,28 @@
       loadConfig();
     } catch (err) {
       setFeedback(keyFeedback, err.message, false);
+    }
+  });
+
+  saveGeminiKeyBtn.addEventListener('click', async () => {
+    const geminiApiKey = geminiKeyInput.value.trim();
+    if (!geminiApiKey) {
+      setFeedback(geminiKeyFeedback, 'Informe uma chave antes de salvar.', false);
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ geminiApiKey })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao salvar');
+      geminiKeyInput.value = '';
+      setFeedback(geminiKeyFeedback, data.persisted ? 'Chave salva e persistida no servidor.' : 'Chave aplicada nesta instancia (nao persistida - ambiente efemero).', true);
+      loadConfig();
+    } catch (err) {
+      setFeedback(geminiKeyFeedback, err.message, false);
     }
   });
 
