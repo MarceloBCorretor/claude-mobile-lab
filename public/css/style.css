@@ -85,7 +85,9 @@ select:focus, input:focus, textarea:focus {
 .app-shell {
   display: flex;
   height: 100vh;
-  height: 100dvh;
+  /* svh (not dvh) so the fixed bottom nav is never hidden behind the browser's
+     address bar while it's still expanded right after load/tab-switch. */
+  height: 100svh;
   overflow: hidden;
   position: relative;
   z-index: 1;
@@ -642,7 +644,7 @@ select:focus, input:focus, textarea:focus {
 
 .login-shell {
   height: 100vh;
-  height: 100dvh;
+  height: 100svh;
   display: flex;
   align-items: center;
   justify-content: center;

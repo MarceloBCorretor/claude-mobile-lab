@@ -424,10 +424,11 @@
     referenceImages.forEach((ref, idx) => {
       const chip = document.createElement('div');
       chip.className = 'attachment-chip';
-      chip.innerHTML = `<img src="${ref.dataUrl}" alt="" /><span class="name">${escapeHtml(ref.name)}</span>`;
+      const thumb = activeKind === 'audio' ? '<span class="chip-icon">🎵</span>' : `<img src="${ref.dataUrl}" alt="" />`;
+      chip.innerHTML = `${thumb}<span class="name">${escapeHtml(ref.name)}</span>`;
       const rm = document.createElement('button');
       rm.textContent = '✕';
-      rm.title = 'Remover referencia';
+      rm.title = 'Remover';
       rm.addEventListener('click', () => {
         referenceImages.splice(idx, 1);
         renderAttachments();
@@ -439,6 +440,16 @@
 
   attachBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', async () => {
+    if (activeKind === 'audio') {
+      const file = fileInput.files?.[0];
+      fileInput.value = '';
+      if (!file || !file.type.startsWith('audio/')) return;
+      const dataUrl = await readFileAsDataUrl(file);
+      referenceImages = [{ name: file.name, dataUrl }];
+      renderAttachments();
+      showBanner('ok', `Audio "${file.name}" anexado - pronto pra transcrever.`);
+      return;
+    }
     const files = Array.from(fileInput.files || []).slice(0, MAX_REFERENCE_IMAGES - referenceImages.length);
     for (const file of files) {
       if (!file.type.startsWith('image/')) continue;
@@ -454,6 +465,8 @@
 
   // --- Models / kind toggle --------------------------------------------------
 
+  const KIND_LABELS = { image: 'imagem', video: 'video', audio: 'audio' };
+
   async function loadModels() {
     try {
       const res = await fetch('/api/models/media');
@@ -461,9 +474,9 @@
       mediaModels = data.models || [];
       renderModelSelect();
       if (!mediaModels.length) {
-        showBanner('warn', 'Nenhum modelo de imagem/video habilitado. Configure em /admin.');
+        showBanner('warn', 'Nenhum modelo de imagem/video/audio habilitado. Configure em /admin.');
       } else {
-        showBanner('ok', `${mediaModels.length} modelo(s) de imagem/video via Gemini`);
+        showBanner('ok', `${mediaModels.length} modelo(s) de imagem/video/audio`);
       }
     } catch {
       showBanner('warn', 'Nao foi possivel carregar a lista de modelos.');
@@ -473,7 +486,7 @@
   function renderModelSelect() {
     const filtered = mediaModels.filter((m) => m.kind === activeKind);
     studioModelSelect.innerHTML = filtered.map((m) => `<option value="${m.id}">${escapeHtml(m.label)}</option>`).join('')
-      || `<option value="">Nenhum modelo de ${activeKind === 'image' ? 'imagem' : 'video'} habilitado</option>`;
+      || `<option value="">Nenhum modelo de ${KIND_LABELS[activeKind]} habilitado</option>`;
     renderOptions();
   }
 
@@ -484,7 +497,7 @@
           Proporcao
           <select id="aspectRatioSelect">${ASPECT_RATIOS.map((r) => `<option value="${r}">${r}</option>`).join('')}</select>
         </label>`;
-    } else {
+    } else if (activeKind === 'video') {
       studioOptions.innerHTML = `
         <label class="studio-option">
           Proporcao
@@ -494,9 +507,23 @@
           Resolucao
           <select id="resolutionSelect">${VIDEO_RESOLUTIONS.map((r) => `<option value="${r}">${r}</option>`).join('')}</select>
         </label>`;
+    } else {
+      studioOptions.innerHTML = '';
     }
     renderPromptLibrary();
     studioOptions.appendChild(promptLibrarySelect);
+
+    if (activeKind === 'audio') {
+      fileInput.accept = 'audio/*';
+      fileInput.multiple = false;
+      attachBtn.title = 'Anexar audio para transcrever';
+      promptInput.placeholder = 'Nomes proprios, termos tecnicos (opcional) - ajuda a transcricao a acertar...';
+    } else {
+      fileInput.accept = 'image/*';
+      fileInput.multiple = true;
+      attachBtn.title = 'Anexar foto de referencia';
+      promptInput.placeholder = 'Descreva a imagem ou o vídeo que você quer gerar...';
+    }
   }
 
   kindToggle.addEventListener('click', (e) => {
@@ -505,6 +532,8 @@
     kindToggle.querySelectorAll('.kind-btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     activeKind = btn.dataset.kind;
+    referenceImages = [];
+    renderAttachments();
     renderModelSelect();
   });
 
@@ -617,14 +646,44 @@
     card.innerHTML = `<div class="msg-feedback error">${escapeHtml(message)}</div>`;
   }
 
+  async function copyToClipboard(text, btn) {
+    const original = btn.innerHTML;
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.innerHTML = '✅ <span>Copiado</span>';
+    } catch {
+      btn.innerHTML = '⚠️ <span>Falhou</span>';
+    }
+    setTimeout(() => { btn.innerHTML = original; }, 1800);
+  }
+
+  function renderTranscriptCard(card, { text, modelLabel, filename }) {
+    card.className = 'studio-card';
+    card.innerHTML = '';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble-text';
+    bubble.textContent = text || '(transcricao vazia)';
+    card.appendChild(bubble);
+
+    const meta = document.createElement('div');
+    meta.className = 'studio-card-meta';
+    meta.textContent = `${modelLabel} - ${filename}`;
+    card.appendChild(meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'media-actions';
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'code-action-btn primary';
+    copyBtn.innerHTML = '📋 <span>Copiar</span>';
+    copyBtn.addEventListener('click', () => copyToClipboard(text, copyBtn));
+    actions.appendChild(copyBtn);
+    card.appendChild(actions);
+  }
+
   // --- Generation ---------------------------------------------------------
 
   async function generate() {
-    const prompt = promptInput.value.trim();
-    if (!prompt) {
-      showBanner('warn', 'Digite uma descricao para gerar.');
-      return;
-    }
     const modelId = studioModelSelect.value;
     if (!modelId) {
       showBanner('warn', 'Nenhum modelo habilitado para esse tipo de geracao.');
@@ -633,6 +692,37 @@
     const selectedModel = mediaModels.find((m) => m.id === modelId);
     const modelLabel = selectedModel?.label || modelId;
     const kind = activeKind;
+    const prompt = promptInput.value.trim();
+
+    if (kind === 'audio') {
+      const audio = referenceImages[0];
+      if (!audio) {
+        showBanner('warn', 'Anexe um audio pra transcrever.');
+        return;
+      }
+      sendBtn.disabled = true;
+      const card = addPendingCard('Transcrevendo audio...');
+      try {
+        const res = await fetch('/api/generate/audio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ modelId, audioDataUrl: audio.dataUrl, prompt, filename: audio.name })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+        renderTranscriptCard(card, { text: data.text, modelLabel, filename: audio.name });
+      } catch (err) {
+        renderErrorCard(card, `Erro: ${err.message}`);
+      } finally {
+        sendBtn.disabled = false;
+      }
+      return;
+    }
+
+    if (!prompt) {
+      showBanner('warn', 'Digite uma descricao para gerar.');
+      return;
+    }
 
     if (kind === 'image' && selectedModel?.provider === 'openai' && referenceImages.length) {
       showBanner('warn', 'O modelo GPT Image ainda nao usa fotos de referencia anexadas - gerando so a partir do texto.');

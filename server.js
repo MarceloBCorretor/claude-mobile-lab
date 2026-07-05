@@ -6,6 +6,7 @@ const conversationStore = require('./src/conversation-store');
 const { streamChatCompletion } = require('./src/openrouter');
 const gemini = require('./src/gemini');
 const openaiImages = require('./src/openai-images');
+const openaiAudio = require('./src/openai-audio');
 
 const app = express();
 
@@ -22,7 +23,8 @@ app.get('/api/models/media', (_req, res) => {
   res.json({
     models: [
       ...store.getEnabledModels('image').map(({ id, label, provider }) => ({ id, label, kind: 'image', provider: provider || 'gemini' })),
-      ...store.getEnabledModels('video').map(({ id, label, provider }) => ({ id, label, kind: 'video', provider: provider || 'gemini' }))
+      ...store.getEnabledModels('video').map(({ id, label, provider }) => ({ id, label, kind: 'video', provider: provider || 'gemini' })),
+      ...store.getEnabledModels('audio').map(({ id, label, provider }) => ({ id, label, kind: 'audio', provider: provider || 'openai' }))
     ]
   });
 });
@@ -121,6 +123,27 @@ app.get('/api/generate/video/:jobId(.*)', session.requireAdmin, async (req, res)
   }
 });
 
+// --- Transcricao de audio (OpenAI) -----------------------------------------
+
+app.post('/api/generate/audio', session.requireAdmin, async (req, res) => {
+  const { modelId, audioDataUrl, prompt, filename } = req.body || {};
+  if (!modelId || typeof audioDataUrl !== 'string' || !audioDataUrl) {
+    return res.status(400).json({ error: 'modelId e audioDataUrl sao obrigatorios' });
+  }
+  const config = store.getConfig();
+  const model = store.getEnabledModels('audio').find((m) => m.id === modelId);
+  if (!model) return res.status(400).json({ error: 'Modelo de audio nao habilitado' });
+  if (!config.openaiApiKey) {
+    return res.status(503).json({ error: 'Chave da OpenAI nao configurada. Peca ao administrador para configura-la em /admin.' });
+  }
+  try {
+    const result = await openaiAudio.transcribeAudio({ apiKey: config.openaiApiKey, model: modelId, audioDataUrl, prompt, filename });
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 502).json({ error: err.message || 'Falha ao transcrever audio' });
+  }
+});
+
 // --- Admin API -----------------------------------------------------------
 
 app.post('/api/admin/login', (req, res) => {
@@ -192,7 +215,7 @@ app.post('/api/admin/config', session.requireAdmin, (req, res) => {
         id: m.id.trim(),
         label: (typeof m.label === 'string' && m.label.trim()) || m.id.trim(),
         enabled: Boolean(m.enabled),
-        kind: ['chat', 'image', 'video'].includes(m.kind) ? m.kind : 'chat',
+        kind: ['chat', 'image', 'video', 'audio'].includes(m.kind) ? m.kind : 'chat',
         provider: ['gemini', 'openai'].includes(m.provider) ? m.provider : 'gemini'
       }));
     if (cleaned.length) patch.models = cleaned;
