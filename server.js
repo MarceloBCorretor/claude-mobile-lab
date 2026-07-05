@@ -4,7 +4,8 @@ const store = require('./src/config-store');
 const session = require('./src/session');
 const conversationStore = require('./src/conversation-store');
 const { streamChatCompletion } = require('./src/openrouter');
-const { generateImage, createVideoJob, pollVideoJob } = require('./src/gemini');
+const gemini = require('./src/gemini');
+const openaiImages = require('./src/openai-images');
 
 const app = express();
 
@@ -20,8 +21,8 @@ app.get('/api/models', (_req, res) => {
 app.get('/api/models/media', (_req, res) => {
   res.json({
     models: [
-      ...store.getEnabledModels('image').map(({ id, label }) => ({ id, label, kind: 'image' })),
-      ...store.getEnabledModels('video').map(({ id, label }) => ({ id, label, kind: 'video' }))
+      ...store.getEnabledModels('image').map(({ id, label, provider }) => ({ id, label, kind: 'image', provider: provider || 'gemini' })),
+      ...store.getEnabledModels('video').map(({ id, label, provider }) => ({ id, label, kind: 'video', provider: provider || 'gemini' }))
     ]
   });
 });
@@ -67,11 +68,21 @@ app.post('/api/generate/image', session.requireAdmin, async (req, res) => {
   const config = store.getConfig();
   const model = store.getEnabledModels('image').find((m) => m.id === modelId);
   if (!model) return res.status(400).json({ error: 'Modelo de imagem nao habilitado' });
-  if (!config.geminiApiKey) {
-    return res.status(503).json({ error: 'Chave do Gemini (Google AI Studio) nao configurada. Peca ao administrador para configura-la em /admin.' });
-  }
+
+  const provider = model.provider || 'gemini';
   try {
-    const result = await generateImage({ apiKey: config.geminiApiKey, model: modelId, prompt, aspectRatio, referenceImages });
+    let result;
+    if (provider === 'openai') {
+      if (!config.openaiApiKey) {
+        return res.status(503).json({ error: 'Chave da OpenAI nao configurada. Peca ao administrador para configura-la em /admin.' });
+      }
+      result = await openaiImages.generateImage({ apiKey: config.openaiApiKey, model: modelId, prompt, aspectRatio });
+    } else {
+      if (!config.geminiApiKey) {
+        return res.status(503).json({ error: 'Chave do Gemini (Google AI Studio) nao configurada. Peca ao administrador para configura-la em /admin.' });
+      }
+      result = await gemini.generateImage({ apiKey: config.geminiApiKey, model: modelId, prompt, aspectRatio, referenceImages });
+    }
     res.json(result);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || 'Falha ao gerar imagem' });
@@ -90,7 +101,7 @@ app.post('/api/generate/video', session.requireAdmin, async (req, res) => {
     return res.status(503).json({ error: 'Chave do Gemini (Google AI Studio) nao configurada. Peca ao administrador para configura-la em /admin.' });
   }
   try {
-    const job = await createVideoJob({ apiKey: config.geminiApiKey, model: modelId, prompt, aspectRatio, resolution, referenceImage });
+    const job = await gemini.createVideoJob({ apiKey: config.geminiApiKey, model: modelId, prompt, aspectRatio, resolution, referenceImage });
     res.json(job);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || 'Falha ao iniciar geracao de video' });
@@ -103,7 +114,7 @@ app.get('/api/generate/video/:jobId(.*)', session.requireAdmin, async (req, res)
     return res.status(503).json({ error: 'Chave do Gemini (Google AI Studio) nao configurada.' });
   }
   try {
-    const status = await pollVideoJob({ apiKey: config.geminiApiKey, jobId: req.params.jobId });
+    const status = await gemini.pollVideoJob({ apiKey: config.geminiApiKey, jobId: req.params.jobId });
     res.json(status);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || 'Falha ao consultar status do video' });
@@ -155,12 +166,14 @@ app.get('/api/admin/config', session.requireAdmin, (_req, res) => {
     apiKeySource: config.apiKeySource,
     geminiApiKeyConfigured: Boolean(config.geminiApiKey),
     geminiApiKeySource: config.geminiApiKeySource,
+    openaiApiKeyConfigured: Boolean(config.openaiApiKey),
+    openaiApiKeySource: config.openaiApiKeySource,
     models: config.models
   });
 });
 
 app.post('/api/admin/config', session.requireAdmin, (req, res) => {
-  const { apiKey, geminiApiKey, models } = req.body || {};
+  const { apiKey, geminiApiKey, openaiApiKey, models } = req.body || {};
   const patch = {};
 
   if (typeof apiKey === 'string' && apiKey.trim()) {
@@ -169,6 +182,9 @@ app.post('/api/admin/config', session.requireAdmin, (req, res) => {
   if (typeof geminiApiKey === 'string' && geminiApiKey.trim()) {
     patch.geminiApiKey = geminiApiKey.trim();
   }
+  if (typeof openaiApiKey === 'string' && openaiApiKey.trim()) {
+    patch.openaiApiKey = openaiApiKey.trim();
+  }
   if (Array.isArray(models)) {
     const cleaned = models
       .filter((m) => m && typeof m.id === 'string' && m.id.trim())
@@ -176,7 +192,8 @@ app.post('/api/admin/config', session.requireAdmin, (req, res) => {
         id: m.id.trim(),
         label: (typeof m.label === 'string' && m.label.trim()) || m.id.trim(),
         enabled: Boolean(m.enabled),
-        kind: ['chat', 'image', 'video'].includes(m.kind) ? m.kind : 'chat'
+        kind: ['chat', 'image', 'video'].includes(m.kind) ? m.kind : 'chat',
+        provider: ['gemini', 'openai'].includes(m.provider) ? m.provider : 'gemini'
       }));
     if (cleaned.length) patch.models = cleaned;
   }
@@ -189,6 +206,7 @@ app.post('/api/admin/config', session.requireAdmin, (req, res) => {
     platform: store.getPlatform(),
     apiKeyConfigured: Boolean(config.openrouterApiKey),
     geminiApiKeyConfigured: Boolean(config.geminiApiKey),
+    openaiApiKeyConfigured: Boolean(config.openaiApiKey),
     models: config.models
   });
 });

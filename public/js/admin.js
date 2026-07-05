@@ -13,6 +13,10 @@
   const geminiKeyStatusLabel = document.getElementById('geminiKeyStatusLabel');
   const saveGeminiKeyBtn = document.getElementById('saveGeminiKeyBtn');
   const geminiKeyFeedback = document.getElementById('geminiKeyFeedback');
+  const openaiKeyInput = document.getElementById('openaiKeyInput');
+  const openaiKeyStatusLabel = document.getElementById('openaiKeyStatusLabel');
+  const saveOpenaiKeyBtn = document.getElementById('saveOpenaiKeyBtn');
+  const openaiKeyFeedback = document.getElementById('openaiKeyFeedback');
   const modelsBody = document.getElementById('modelsBody');
   const addModelBtn = document.getElementById('addModelBtn');
   const saveModelsBtn = document.getElementById('saveModelsBtn');
@@ -47,9 +51,10 @@
     models.forEach((m) => addModelRow(m));
   }
 
-  function addModelRow(model = { id: '', label: '', enabled: true, kind: 'chat' }) {
+  function addModelRow(model = { id: '', label: '', enabled: true, kind: 'chat', provider: 'gemini' }) {
     const tr = document.createElement('tr');
     const kind = model.kind || 'chat';
+    const provider = model.provider || 'gemini';
     tr.innerHTML = `
       <td><input type="checkbox" ${model.enabled ? 'checked' : ''} class="m-enabled" /></td>
       <td><input type="text" class="m-id" value="${model.id.replace(/"/g, '&quot;')}" placeholder="ex: z-ai/glm-5.2" /></td>
@@ -61,9 +66,18 @@
           <option value="video" ${kind === 'video' ? 'selected' : ''}>Video</option>
         </select>
       </td>
+      <td>
+        <select class="m-provider" ${kind === 'chat' ? 'disabled' : ''}>
+          <option value="gemini" ${provider === 'gemini' ? 'selected' : ''}>Gemini</option>
+          <option value="openai" ${provider === 'openai' ? 'selected' : ''}>OpenAI</option>
+        </select>
+      </td>
       <td><button class="rm-btn" title="Remover">✕</button></td>
     `;
     tr.querySelector('.rm-btn').addEventListener('click', () => tr.remove());
+    tr.querySelector('.m-kind').addEventListener('change', (e) => {
+      tr.querySelector('.m-provider').disabled = e.target.value === 'chat';
+    });
     modelsBody.appendChild(tr);
   }
 
@@ -72,7 +86,8 @@
       id: tr.querySelector('.m-id').value.trim(),
       label: tr.querySelector('.m-label').value.trim(),
       enabled: tr.querySelector('.m-enabled').checked,
-      kind: tr.querySelector('.m-kind').value
+      kind: tr.querySelector('.m-kind').value,
+      provider: tr.querySelector('.m-provider').value
     })).filter((m) => m.id);
   }
 
@@ -86,7 +101,7 @@
     showAdmin();
 
     if (data.platform === 'vercel') {
-      platformBanner.innerHTML = `<div class="banner warn">Rodando na Vercel: o sistema de arquivos e efemero. Para persistencia garantida das chaves de API, defina <code>OPENROUTER_API_KEY</code> e/ou <code>GEMINI_API_KEY</code> em Project Settings &rarr; Environment Variables e faca redeploy. Alteracoes feitas aqui valem apenas ate o proximo cold start/deploy.</div>`;
+      platformBanner.innerHTML = `<div class="banner warn">Rodando na Vercel: o sistema de arquivos e efemero. Para persistencia garantida das chaves de API, defina <code>OPENROUTER_API_KEY</code>, <code>GEMINI_API_KEY</code> e/ou <code>OPENAI_API_KEY</code> em Project Settings &rarr; Environment Variables e faca redeploy. Alteracoes feitas aqui valem apenas ate o proximo cold start/deploy.</div>`;
     } else {
       platformBanner.innerHTML = `<div class="banner info">Rodando em ambiente Node persistente (ex: Hostinger). As alteracoes salvas aqui sao gravadas em <code>data/runtime-config.json</code> no servidor.</div>`;
     }
@@ -97,6 +112,10 @@
 
     geminiKeyStatusLabel.textContent = data.geminiApiKeyConfigured
       ? `Configurada (origem: ${data.geminiApiKeySource === 'env' ? 'variavel de ambiente' : 'painel admin'})`
+      : 'Nao configurada';
+
+    openaiKeyStatusLabel.textContent = data.openaiApiKeyConfigured
+      ? `Configurada (origem: ${data.openaiApiKeySource === 'env' ? 'variavel de ambiente' : 'painel admin'})`
       : 'Nao configurada';
 
     renderModelsTable(data.models || []);
@@ -182,6 +201,32 @@
       loadConfig();
     } catch (err) {
       setFeedback(geminiKeyFeedback, err.message, false);
+    }
+  });
+
+  saveOpenaiKeyBtn.addEventListener('click', async () => {
+    const openaiApiKey = openaiKeyInput.value.trim();
+    if (!openaiApiKey) {
+      setFeedback(openaiKeyFeedback, 'Informe uma chave antes de salvar.', false);
+      return;
+    }
+    try {
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ openaiApiKey })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Falha ao salvar');
+      openaiKeyInput.value = '';
+      setFeedback(openaiKeyFeedback, data.persisted ? 'Chave salva e persistida no servidor.' : 'Chave aplicada nesta instancia (nao persistida - ambiente efemero).', true);
+      showToast('✅ Chave da OpenAI salva com sucesso');
+      const original = saveOpenaiKeyBtn.textContent;
+      saveOpenaiKeyBtn.textContent = '✅ Salva!';
+      setTimeout(() => { saveOpenaiKeyBtn.textContent = original; }, 1800);
+      loadConfig();
+    } catch (err) {
+      setFeedback(openaiKeyFeedback, err.message, false);
     }
   });
 
