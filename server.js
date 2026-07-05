@@ -123,6 +123,30 @@ app.get('/api/generate/video/:jobId(.*)', session.requireAdmin, async (req, res)
   }
 });
 
+// Baixar o video gerado atraves do proprio servidor (mesma origem) em vez de
+// linkar direto pra generativelanguage.googleapis.com - o atributo `download`
+// do navegador e ignorado em URLs de outra origem, entao clicar em "Baixar"
+// so abria/tocava o video em vez de salvar. Repassando com Content-Disposition
+// forcamos o download de verdade em qualquer navegador.
+app.get('/api/download-video', session.requireAdmin, async (req, res) => {
+  const { url } = req.query;
+  if (typeof url !== 'string' || !/^https:\/\/generativelanguage\.googleapis\.com\//.test(url)) {
+    return res.status(400).json({ error: 'URL de video invalida' });
+  }
+  try {
+    const upstream = await fetch(url);
+    if (!upstream.ok) {
+      return res.status(upstream.status).json({ error: `Erro ${upstream.status} ao baixar o video` });
+    }
+    res.setHeader('Content-Disposition', 'attachment; filename="multiia-video.mp4"');
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'video/mp4');
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    res.send(buffer);
+  } catch (err) {
+    res.status(502).json({ error: 'Falha ao baixar o video' });
+  }
+});
+
 // --- Transcricao de audio (OpenAI) -----------------------------------------
 
 app.post('/api/generate/audio', session.requireAdmin, async (req, res) => {

@@ -227,7 +227,22 @@ redeploy (adicionar a variável sozinha não redeploya automático).
 - Service worker (`service-worker.js`) usa estratégia **network-first** (não
   cache-first) para que deploys novos apareçam sem precisar limpar cache do site.
   Versão do cache é bumped manualmente (`CACHE_NAME`) a cada mudança relevante de
-  assets — está em `multiia-shell-v16` no momento.
+  assets — está em `multiia-shell-v19` no momento.
+- **Bug de cache resolvido (2026-07-05):** mesmo com network-first, o usuário
+  ficava vendo versões antigas da UI (ex.: a proporção `1:1` já removida do
+  código continuava aparecendo no celular). Causa: o CDN estático da Vercel
+  (`outputDirectory: "public"`) aplica cache agressivo de borda pros arquivos
+  em `/js`, `/css`, `*.html` e o próprio `service-worker.js` por padrão, então
+  o `fetch()` dentro do handler network-first às vezes nem chegava a bater no
+  servidor de verdade. Corrigido em `vercel.json` com um bloco `headers` que
+  forca `Cache-Control: no-cache` (revalida sempre via ETag) nesses caminhos.
+  **Importante:** foi tentado também recarregar a página sozinha quando o
+  service worker novo assume o controle (`controllerchange` em `pwa.js`), mas
+  esse evento dispara também na *primeira* ativação (não só em atualizações de
+  verdade) — causava um reload inesperado que apagava o que a pessoa estivesse
+  digitando (ex.: a senha de login pela metade). Essa parte foi **revertida**;
+  o fix real é só o `Cache-Control` do `vercel.json` + o `reg.update()`
+  (checagem proativa, sem reload forçado) que ficou em `pwa.js`.
 
 ### 6.3 Anexos no composer
 Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
@@ -455,6 +470,29 @@ de prompt e uma galeria de resultados (mais recente no topo).
   imagem foi retornada) — ambas lançam um erro explícito em vez de deixar
   passar batido. Combinado com a reescrita automática de nomes acima, que
   ataca a causa raiz preventivamente.
+- **Download de vídeo corrigido de verdade (2026-07-05):** o fix anterior
+  (adicionar o atributo `download` no link) resolveu a imagem, mas não o
+  vídeo — o link do vídeo aponta pra uma URL de **outra origem**
+  (`generativelanguage.googleapis.com`), e o atributo `download` do navegador
+  é **ignorado em URLs cross-origin** (restrição de segurança do próprio
+  browser, não um bug nosso), então clicar só abria/tocava o vídeo em vez de
+  baixar. Corrigido com dois fixes complementares:
+  - `GET /api/download-video?url=...` (novo, `server.js`): busca o vídeo no
+    servidor (sem restrição de CORS ali, é server-to-server) e devolve com
+    `Content-Disposition: attachment` pela mesma origem do app — valida que a
+    URL é do domínio do Gemini antes de buscar.
+  - `triggerDownload()` (novo, `public/js/studio.js`): função compartilhada
+    pelos botões de baixar da galeria e do preview em tela cheia — converte
+    a resposta (imagem `data:` direta, vídeo via o proxy acima) num Blob e
+    dispara o download via um `<a>` temporário com `download` + URL de blob,
+    que funciona de forma confiável em qualquer navegador/origem.
+- **Campo de prompt expansível:** `promptInput` cresce (até 50vh, com scroll
+  interno se passar disso) enquanto o usuário digita/foca, em vez de ficar
+  preso numa caixinha fixa de 2 linhas — prompts longos (comuns nos templates
+  da biblioteca) ficavam ilegíveis exigindo scroll interno apertado. Volta ao
+  tamanho normal quando o campo fica vazio (inclusive logo após enviar), pra
+  não ocupar espaço da tela desnecessariamente e priorizar o resultado da
+  geração.
 - **Modelos configurados:** três opções de imagem — Nano Banana 2 Lite
   (`gemini-3.1-flash-lite-image`, padrão: rápido e barato), Nano Banana 2
   (`gemini-3.1-flash-image-preview`, mais qualidade, o dobro do preço) e GPT
@@ -612,7 +650,8 @@ de prompt e uma galeria de resultados (mais recente no topo).
 | #16 | Ícone do app refeito em alta definição | Novo ícone (rede/nós, roxo/ciano) gerado via SVG + Playwright em 16/32/180/192/512px, `favicon.ico` reconstruído |
 | #17 | Transcrição de áudio + fix de layout mobile | `src/openai-audio.js` + aba Áudio no Estúdio (`kind: 'audio'`), fix de `.app-shell`/`.login-shell` usando `100svh` em vez de `100dvh` (barra inferior escondida atrás da barra de endereço do navegador) |
 | #18 | Fix proporção 1:1 inválida no Gemini + 9:16 como padrão | Remove `1:1` de `ASPECT_RATIOS` (rejeitada pela API real do Gemini), define `9:16` como padrão para imagem e vídeo |
-| #19 (a caminho) | Fix download, layout full-width, trava de resolução e sanitização de personagens | `download` correto no preview em tela cheia (fix do nome de arquivo `2Q==.bin`), rodapé centralizado com botão de baixar, imagem em largura total, trava de `1080p` só com `16:9`, `sanitizeCopyrightedNames()` reescreve nomes de personagens protegidos antes de gerar, `promptFeedback.blockReason`/`finishReason` checados em `src/gemini.js` |
+| #19 | Fix download, layout full-width, trava de resolução e sanitização de personagens | `download` correto no preview em tela cheia (fix do nome de arquivo `2Q==.bin`), rodapé centralizado com botão de baixar, imagem em largura total, trava de `1080p` só com `16:9`, `sanitizeCopyrightedNames()` reescreve nomes de personagens protegidos antes de gerar, `promptFeedback.blockReason`/`finishReason` checados em `src/gemini.js` |
+| #20 (a caminho) | Fix cache estático, download de vídeo, campo de prompt expansível | `vercel.json` com `Cache-Control: no-cache` pra JS/CSS/HTML/service-worker (causa raiz do usuário ver UI desatualizada mesmo após deploy), `GET /api/download-video` (proxy same-origin) + `triggerDownload()` via Blob (fix real do download de vídeo, que é cross-origin e ignora o atributo `download`), `promptInput` expansível até 50vh ao editar |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
