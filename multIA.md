@@ -408,14 +408,53 @@ de prompt e uma galeria de resultados (mais recente no topo).
     app.
 - **Preview em tela cheia**, mesmo padrão usado pro preview de código HTML no
   chat (seção 6.6): clicar na imagem/vídeo gerado abre um overlay
-  `.fullscreen-preview` dentro de `#mainContent`, com cabeçalho
-  Fechar/Abrir-Baixar. Reaproveita a mesma classe CSS; o conteúdo é um
-  `<img>`/`<video>` (`.fullscreen-preview-media`, `object-fit: contain`) em vez
-  de um iframe.
+  `.fullscreen-preview` dentro de `#mainContent`, com cabeçalho (só "Fechar")
+  e um **rodapé centralizado** com o botão de download
+  (`.fullscreen-preview-footer`). Reaproveita a mesma classe CSS; o conteúdo é
+  um `<img>`/`<video>` (`.fullscreen-preview-media`, `object-fit: contain`) em
+  vez de um iframe.
 - **Resultados não são persistidos** — a galeria vive só na memória da página
   (mesma decisão já tomada pra anexos de imagem no chat, pra não estourar cota
   de armazenamento com base64 grandes); baixe o que quiser guardar antes de
   recarregar a página.
+- **Imagens exibidas em largura total** (`.generated-media { width: 100% }`),
+  igual ao vídeo — antes só tinha `max-width: 100%`, então a imagem aparecia
+  menor que o card em vez de preencher a largura da tela (reportado pelo
+  usuário: "o vídeo aparece no tamanho normal, a imagem não").
+- **Bug de download corrigido:** o botão de baixar no preview em tela cheia
+  não tinha o atributo `download` (só `target="_blank"`), então o Android
+  tentava "salvar" a própria data: URL crua e sugeria um nome de arquivo
+  ilegível tipo `2Q==.bin` no menu de contexto. Corrigido adicionando
+  `download="multiia-<kind>.<ext>"` no link, igual ao que já existia (e
+  sempre funcionou) nos botões de download da galeria normal.
+- **Trava de resolução x proporção no vídeo:** o Veo 3.1 só aceita `1080p`
+  quando a proporção é `16:9` — com `9:16` (ou qualquer outra) como padrão,
+  selecionar `1080p` teria causado erro. A opção `1080p` agora fica desabilitada
+  automaticamente no seletor sempre que a proporção não for `16:9`, e volta pra
+  `720p` nesse caso.
+- **Reescrita automática de nomes de personagens protegidos por direitos
+  autorais:** `sanitizeCopyrightedNames()` em `public/js/studio.js` mantém uma
+  lista curada (não exaustiva) de ~19 personagens/franquias conhecidos
+  (Scooby-Doo, Shaggy, Mickey Mouse, Pikachu, Mario, etc.) e troca o nome por
+  uma descrição genérica **antes** de enviar o prompt pra API, tanto pra
+  imagem quanto pra vídeo — reduz o risco do bloqueio silencioso do Veo e da
+  substituição por conteúdo genérico sem aviso do Gemini/Nano Banana (ver
+  próximo item). Quando algo é trocado, mostra um aviso e atualiza o campo de
+  prompt com o texto realmente enviado, pra transparência.
+- **Investigação do "resultado errado" na imagem** (usuário relatou: pediu uma
+  cena do Salsicha e do Scooby-Doo e recebeu, uma vez, a imagem de um médico
+  pediatra sem nenhuma relação com o prompt): API do Gemini não retornou erro
+  nem campo de bloqueio nessa chamada especificamente, então não dá pra
+  confirmar 100% a causa - mas o padrão é consistente com uma substituição
+  silenciosa de segurança (o modelo troca o conteúdo bloqueado por uma imagem
+  genérica não relacionada em vez de recusar explicitamente), um comportamento
+  conhecido de modelos de imagem do Gemini pra prompts com personagens
+  protegidos. Duas mitigações adicionadas em `src/gemini.js::generateImage`:
+  checagem de `data.promptFeedback.blockReason` (campo oficial do Gemini pra
+  prompt bloqueado) e de `candidate.finishReason !== 'STOP'` (mesmo quando uma
+  imagem foi retornada) — ambas lançam um erro explícito em vez de deixar
+  passar batido. Combinado com a reescrita automática de nomes acima, que
+  ataca a causa raiz preventivamente.
 - **Modelos configurados:** três opções de imagem — Nano Banana 2 Lite
   (`gemini-3.1-flash-lite-image`, padrão: rápido e barato), Nano Banana 2
   (`gemini-3.1-flash-image-preview`, mais qualidade, o dobro do preço) e GPT
@@ -572,7 +611,8 @@ de prompt e uma galeria de resultados (mais recente no topo).
 | #15 | GPT Image (OpenAI) + animar imagem gerada + infográficos | `src/openai-images.js`, campo `provider` nos modelos, `OPENAI_API_KEY` + campo no admin, botão "Animar esta imagem" (imagem → vídeo), 2 templates de infográfico (estilo revista, vista explodida) |
 | #16 | Ícone do app refeito em alta definição | Novo ícone (rede/nós, roxo/ciano) gerado via SVG + Playwright em 16/32/180/192/512px, `favicon.ico` reconstruído |
 | #17 | Transcrição de áudio + fix de layout mobile | `src/openai-audio.js` + aba Áudio no Estúdio (`kind: 'audio'`), fix de `.app-shell`/`.login-shell` usando `100svh` em vez de `100dvh` (barra inferior escondida atrás da barra de endereço do navegador) |
-| #18 (a caminho) | Fix proporção 1:1 inválida no Gemini + 9:16 como padrão | Remove `1:1` de `ASPECT_RATIOS` (rejeitada pela API real do Gemini), define `9:16` como padrão para imagem e vídeo |
+| #18 | Fix proporção 1:1 inválida no Gemini + 9:16 como padrão | Remove `1:1` de `ASPECT_RATIOS` (rejeitada pela API real do Gemini), define `9:16` como padrão para imagem e vídeo |
+| #19 (a caminho) | Fix download, layout full-width, trava de resolução e sanitização de personagens | `download` correto no preview em tela cheia (fix do nome de arquivo `2Q==.bin`), rodapé centralizado com botão de baixar, imagem em largura total, trava de `1080p` só com `16:9`, `sanitizeCopyrightedNames()` reescreve nomes de personagens protegidos antes de gerar, `promptFeedback.blockReason`/`finishReason` checados em `src/gemini.js` |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
