@@ -28,6 +28,20 @@
     el.className = `msg-feedback ${ok ? 'ok' : 'error'}`;
   }
 
+  let toastEl = null;
+  let toastTimer = null;
+  function showToast(text) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.className = 'admin-toast';
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2600);
+  }
+
   function renderModelsTable(models) {
     modelsBody.innerHTML = '';
     models.forEach((m) => addModelRow(m));
@@ -135,6 +149,10 @@
       if (!res.ok) throw new Error(data.error || 'Falha ao salvar');
       apiKeyInput.value = '';
       setFeedback(keyFeedback, data.persisted ? 'Chave salva e persistida no servidor.' : 'Chave aplicada nesta instancia (nao persistida - ambiente efemero).', true);
+      showToast('✅ Chave da OpenRouter salva com sucesso');
+      const original = saveKeyBtn.textContent;
+      saveKeyBtn.textContent = '✅ Salva!';
+      setTimeout(() => { saveKeyBtn.textContent = original; }, 1800);
       loadConfig();
     } catch (err) {
       setFeedback(keyFeedback, err.message, false);
@@ -157,6 +175,10 @@
       if (!res.ok) throw new Error(data.error || 'Falha ao salvar');
       geminiKeyInput.value = '';
       setFeedback(geminiKeyFeedback, data.persisted ? 'Chave salva e persistida no servidor.' : 'Chave aplicada nesta instancia (nao persistida - ambiente efemero).', true);
+      showToast('✅ Chave do Gemini salva com sucesso');
+      const original = saveGeminiKeyBtn.textContent;
+      saveGeminiKeyBtn.textContent = '✅ Salva!';
+      setTimeout(() => { saveGeminiKeyBtn.textContent = original; }, 1800);
       loadConfig();
     } catch (err) {
       setFeedback(geminiKeyFeedback, err.message, false);
@@ -176,6 +198,7 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Falha ao salvar');
       setFeedback(modelsFeedback, data.persisted ? 'Modelos salvos e persistidos no servidor.' : 'Modelos aplicados nesta instancia (nao persistidos - ambiente efemero).', true);
+      showToast('✅ Modelos salvos com sucesso');
     } catch (err) {
       setFeedback(modelsFeedback, err.message, false);
     }
@@ -196,6 +219,7 @@
       currentPasswordInput.value = '';
       newPasswordInput.value = '';
       setFeedback(passwordFeedback, data.persisted ? 'Senha alterada e persistida.' : 'Senha alterada nesta instancia (nao persistida - ambiente efemero).', true);
+      showToast('✅ Senha alterada com sucesso');
     } catch (err) {
       setFeedback(passwordFeedback, err.message, false);
     }
