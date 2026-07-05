@@ -195,11 +195,18 @@ redeploy (adicionar a variável sozinha não redeploya automático).
 - Layout usa `100dvh` (não `100vh`) + `env(safe-area-inset-bottom)` para não cortar
   o composer atrás da barra do navegador mobile.
 - Instalável como PWA: manifest com ícones 192/512, `favicon.ico` real,
-  `apple-touch-icon` 180px, meta tags `apple-mobile-web-app-*`.
+  `apple-touch-icon` 180px, meta tags `apple-mobile-web-app-*`. Ícone é um
+  motivo de rede/nós conectados (tema "múltiplos modelos de IA"), em gradiente
+  roxo/ciano sobre fundo escuro, consistente com o tema glass do resto do app
+  — refeito em 2026-07-05 (16/32/180/192/512px + `favicon.ico`) com mais
+  detalhe/gradiente/glow que a versão original (bem mais simples/plana);
+  gerado via SVG renderizado com Playwright, sem depender de nenhuma API de
+  geração de imagem paga. Cabe dentro da "safe zone" de ícones maskable do
+  Android (círculo de ~80% do centro) sem cortar nada importante.
 - Service worker (`service-worker.js`) usa estratégia **network-first** (não
   cache-first) para que deploys novos apareçam sem precisar limpar cache do site.
   Versão do cache é bumped manualmente (`CACHE_NAME`) a cada mudança relevante de
-  assets — está em `multiia-shell-v13` no momento.
+  assets — está em `multiia-shell-v15` no momento.
 
 ### 6.3 Anexos no composer
 Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
@@ -508,7 +515,8 @@ de prompt e uma galeria de resultados (mais recente no topo).
 | #12 | Nano Banana 2 Lite como padrão | Adiciona Nano Banana 2 Lite (mais barato/rápido) como opção padrão de imagem via OpenRouter |
 | #13 | Estúdio de Artes: API direta do Gemini | `src/gemini.js` substitui `src/media-generation.js`, `GEMINI_API_KEY` + campo no admin, MiniMax removido do vídeo, Veo 3.1 (Lite/Fast) no lugar de Omni Flash, upload de foto de referência e biblioteca de ideias de prompt no Estúdio |
 | #14 | Toast de confirmação no admin + biblioteca de prompts ampliada + detecção de filtro de conteúdo | Toast + flash no botão ao salvar chaves/modelos/senha, ~27 novos templates de prompt (animação/ilustração, cinematográfico, publicitário) filtrados por tipo, `pollVideoJob` detecta bloqueio por política de conteúdo do Gemini |
-| #15 (a caminho) | GPT Image (OpenAI) + animar imagem gerada + infográficos | `src/openai-images.js`, campo `provider` nos modelos, `OPENAI_API_KEY` + campo no admin, botão "Animar esta imagem" (imagem → vídeo), 2 templates de infográfico (estilo revista, vista explodida) |
+| #15 | GPT Image (OpenAI) + animar imagem gerada + infográficos | `src/openai-images.js`, campo `provider` nos modelos, `OPENAI_API_KEY` + campo no admin, botão "Animar esta imagem" (imagem → vídeo), 2 templates de infográfico (estilo revista, vista explodida) |
+| #16 (a caminho) | Ícone do app refeito em alta definição | Novo ícone (rede/nós, roxo/ciano) gerado via SVG + Playwright em 16/32/180/192/512px, `favicon.ico` reconstruído |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
