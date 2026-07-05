@@ -6,6 +6,46 @@
   const VIDEO_RESOLUTIONS = ['720p', '1080p'];
   const MAX_REFERENCE_IMAGES = 3;
 
+  // Personagens/franquias protegidos por direitos autorais que costumam disparar
+  // o filtro de seguranca do Gemini/OpenAI (bloqueio silencioso no video, ou
+  // substituicao por uma imagem generica sem aviso claro na imagem). Lista
+  // curada, nao exaustiva - troca o nome por uma descricao generica ANTES de
+  // enviar o prompt, reduzindo a chance de bloqueio (baseado no ajuste manual
+  // que o usuario mesmo fez: "Shaggy e Scooby-Doo" -> "dois personagens").
+  const COPYRIGHTED_NAME_REPLACEMENTS = [
+    [/scooby-?\s?doo/gi, 'um cao manchado marrom'],
+    [/shaggy/gi, 'um jovem de cabelo castanho claro bagunçado e cavanhaque'],
+    [/mickey\s?mouse/gi, 'um personagem de rato de desenho animado'],
+    [/minnie\s?mouse/gi, 'uma personagem de rata de desenho animado'],
+    [/donald\s?duck/gi, 'um personagem de pato de desenho animado'],
+    [/spider-?man/gi, 'um heroi de traje vermelho e azul com teia'],
+    [/batman/gi, 'um heroi vestido de morcego preto'],
+    [/superman/gi, 'um heroi vestido de azul e vermelho com capa'],
+    [/pikachu/gi, 'uma criatura amarela fofa de bochechas eletricas'],
+    [/mario\s?bros?/gi, 'um encanador de macacao com bigode'],
+    [/sonic(\s+the\s+hedgehog)?/gi, 'um ourico azul veloz de desenho animado'],
+    [/spongebob(\s+squarepants)?/gi, 'uma esponja amarela de desenho animado'],
+    [/hello\s?kitty/gi, 'uma gatinha branca fofa de desenho animado'],
+    [/homer\s?simpson/gi, 'um homem careca e gordo de pele amarela de desenho animado'],
+    [/bart\s?simpson/gi, 'um garoto de pele amarela de desenho animado'],
+    [/harry\s?potter/gi, 'um jovem bruxo de oculos redondos'],
+    [/elsa(\s+from\s+frozen)?/gi, 'uma princesa loira de vestido azul gelo'],
+    [/woody(\s+from\s+toy\s+story)?/gi, 'um boneco de cowboy de brinquedo'],
+    [/buzz\s?lightyear/gi, 'um boneco astronauta de brinquedo']
+  ];
+
+  function sanitizeCopyrightedNames(text) {
+    let changed = false;
+    let result = text;
+    COPYRIGHTED_NAME_REPLACEMENTS.forEach(([pattern, replacement]) => {
+      if (pattern.test(result)) {
+        changed = true;
+        result = result.replace(pattern, replacement);
+      }
+    });
+    return { text: result, changed };
+  }
+
   // Ideias de prompt prontas - inserem o texto no campo de prompt para o
   // usuario editar, mesmo padrao das "Tecnicas de estudo" do chat. `kind`
   // filtra em qual aba (imagem/video) a ideia aparece ('both' aparece nas duas).
@@ -510,6 +550,17 @@
           Resolucao
           <select id="resolutionSelect">${VIDEO_RESOLUTIONS.map((r) => `<option value="${r}">${r}</option>`).join('')}</select>
         </label>`;
+      // 1080p so e suportado em 16:9 no Veo 3.1 - travar pra 720p em qualquer
+      // outra proporcao (inclusive o padrao 9:16), senao a geracao falha.
+      const aspectSel = document.getElementById('aspectRatioSelect');
+      const resSel = document.getElementById('resolutionSelect');
+      function syncResolutionLock() {
+        const is169 = aspectSel.value === '16:9';
+        resSel.querySelector('option[value="1080p"]').disabled = !is169;
+        if (!is169) resSel.value = '720p';
+      }
+      aspectSel.addEventListener('change', syncResolutionLock);
+      syncResolutionLock();
     } else {
       studioOptions.innerHTML = '';
     }
@@ -556,21 +607,28 @@
     closeBtn.innerHTML = '✕ <span>Fechar</span>';
     closeBtn.addEventListener('click', closeFullscreenPreview);
 
-    const downloadBtn = document.createElement('a');
-    downloadBtn.className = 'code-action-btn primary';
-    downloadBtn.href = url;
-    downloadBtn.target = '_blank';
-    downloadBtn.rel = 'noopener';
-    downloadBtn.innerHTML = '⬇ <span>Abrir/Baixar</span>';
-
-    header.append(closeBtn, downloadBtn);
+    header.append(closeBtn);
 
     const media = document.createElement(kind === 'video' ? 'video' : 'img');
     media.className = 'fullscreen-preview-media';
     media.src = url;
     if (kind === 'video') { media.controls = true; media.playsInline = true; media.autoplay = true; }
 
-    fullscreenPreviewEl.append(header, media);
+    const footer = document.createElement('div');
+    footer.className = 'fullscreen-preview-footer';
+
+    // `download` (nao so target=_blank) e o que faz o navegador oferecer um
+    // nome de arquivo de verdade em vez de tentar "salvar" a data: URL crua
+    // (o que gerava nomes tipo "2Q==.bin" no menu de contexto do Android).
+    const downloadBtn = document.createElement('a');
+    downloadBtn.className = 'code-action-btn primary';
+    downloadBtn.href = url;
+    downloadBtn.download = `multiia-${kind}.${kind === 'video' ? 'mp4' : 'png'}`;
+    downloadBtn.rel = 'noopener';
+    downloadBtn.innerHTML = '⬇ <span>Baixar</span>';
+    footer.appendChild(downloadBtn);
+
+    fullscreenPreviewEl.append(header, media, footer);
     mainContent.appendChild(fullscreenPreviewEl);
   }
 
@@ -727,6 +785,16 @@
       return;
     }
 
+    // Reescreve nomes de personagens protegidos por direitos autorais antes de
+    // enviar - reduz o risco de bloqueio silencioso (video) ou substituicao por
+    // uma imagem generica sem aviso (imagem), ambos observados em testes reais.
+    const sanitized = sanitizeCopyrightedNames(prompt);
+    const finalPrompt = sanitized.text;
+    if (sanitized.changed) {
+      promptInput.value = finalPrompt;
+      showBanner('warn', 'Detectamos nomes de personagens protegidos por direitos autorais no prompt e os substituimos por descricoes genericas antes de gerar, pra reduzir o risco de bloqueio.');
+    }
+
     if (kind === 'image' && selectedModel?.provider === 'openai' && referenceImages.length) {
       showBanner('warn', 'O modelo GPT Image ainda nao usa fotos de referencia anexadas - gerando so a partir do texto.');
     }
@@ -741,19 +809,19 @@
         const res = await fetch('/api/generate/image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ modelId, prompt, aspectRatio, referenceImages: useReferences ? referenceImages.map((r) => r.dataUrl) : [] })
+          body: JSON.stringify({ modelId, prompt: finalPrompt, aspectRatio, referenceImages: useReferences ? referenceImages.map((r) => r.dataUrl) : [] })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
         if (!data.images || !data.images.length) throw new Error('Nenhuma imagem retornada.');
-        renderResultCard(card, { kind, urls: data.images, prompt, modelLabel });
+        renderResultCard(card, { kind, urls: data.images, prompt: finalPrompt, modelLabel });
       } else {
         const aspectRatio = document.getElementById('aspectRatioSelect')?.value;
         const resolution = document.getElementById('resolutionSelect')?.value;
         const startRes = await fetch('/api/generate/video', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ modelId, prompt, aspectRatio, resolution, referenceImage: referenceImages[0]?.dataUrl })
+          body: JSON.stringify({ modelId, prompt: finalPrompt, aspectRatio, resolution, referenceImage: referenceImages[0]?.dataUrl })
         });
         const job = await startRes.json();
         if (!startRes.ok) throw new Error(job.error || `Erro ${startRes.status}`);
@@ -774,7 +842,7 @@
         if (status !== 'completed' || !unsignedUrls.length) {
           throw new Error(status === 'failed' ? 'A geracao do video falhou.' : 'O video nao ficou pronto a tempo.');
         }
-        renderResultCard(card, { kind, urls: unsignedUrls, prompt, modelLabel });
+        renderResultCard(card, { kind, urls: unsignedUrls, prompt: finalPrompt, modelLabel });
       }
       promptInput.value = '';
     } catch (err) {

@@ -48,7 +48,19 @@ async function generateImage({ apiKey, model, prompt, aspectRatio, referenceImag
     body: { contents: [{ parts }], generationConfig }
   });
 
-  const candidateParts = data.candidates?.[0]?.content?.parts || [];
+  // Campo documentado do Gemini pra prompt bloqueado por seguranca (distinto
+  // do raiMediaFilteredCount do Veo, que so existe pra video).
+  if (data.promptFeedback?.blockReason) {
+    const err = new Error(
+      `O Gemini bloqueou o prompt por politica de conteudo (${data.promptFeedback.blockReason}) `
+      + '- comum ao citar nomes de personagens protegidos por direitos autorais. Ajuste o prompt e tente novamente.'
+    );
+    err.status = 422;
+    throw err;
+  }
+
+  const candidate = data.candidates?.[0];
+  const candidateParts = candidate?.content?.parts || [];
   const images = candidateParts
     .map((part) => {
       const inline = part.inlineData || part.inline_data;
@@ -58,6 +70,20 @@ async function generateImage({ apiKey, model, prompt, aspectRatio, referenceImag
       return bytes ? `data:${mime};base64,${bytes}` : null;
     })
     .filter(Boolean);
+
+  // finishReason diferente de STOP (ex.: IMAGE_SAFETY, PROHIBITED_CONTENT) as
+  // vezes vem acompanhado de uma imagem generica sem relacao com o prompt em
+  // vez de um erro/campo vazio - avisa o usuario mesmo quando uma imagem foi
+  // retornada, pra nao passar batido como se tivesse dado certo.
+  if (images.length && candidate?.finishReason && candidate.finishReason !== 'STOP') {
+    const err = new Error(
+      `O Gemini pode ter alterado o resultado por politica de conteudo (${candidate.finishReason}) - `
+      + 'se a imagem gerada nao corresponde ao prompt, isso e provavelmente o motivo (comum ao citar '
+      + 'nomes de personagens protegidos por direitos autorais). Ajuste o prompt e tente novamente.'
+    );
+    err.status = 422;
+    throw err;
+  }
 
   return { images };
 }

@@ -357,6 +357,7 @@ select:focus, input:focus, textarea:focus {
 
 .generated-media {
   display: block;
+  width: 100%;
   max-width: 100%;
   border-radius: 12px;
   margin: 6px 0;
@@ -385,6 +386,18 @@ select:focus, input:focus, textarea:focus {
   backdrop-filter: blur(var(--blur));
   -webkit-backdrop-filter: blur(var(--blur));
 }
+.fullscreen-preview-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  background: var(--bg-1);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+}
+.fullscreen-preview-footer .code-action-btn { text-decoration: none; }
 .fullscreen-preview-iframe {
   flex: 1;
   width: 100%;
