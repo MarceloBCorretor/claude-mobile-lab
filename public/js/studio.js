@@ -361,6 +361,24 @@
   const mainContent = document.getElementById('mainContent');
   const promptInput = document.getElementById('promptInput');
   const sendBtn = document.getElementById('sendBtn');
+
+  // Cresce o campo de prompt enquanto o usuario edita (ate 50vh, com scroll
+  // interno se passar disso), e volta ao tamanho normal quando fica vazio -
+  // prompts longos (comuns nos templates da biblioteca) ficavam ilegiveis
+  // numa caixinha fixa de 2 linhas.
+  function autoGrowPrompt() {
+    promptInput.classList.add('expanded');
+    promptInput.style.height = 'auto';
+    promptInput.style.height = `${promptInput.scrollHeight}px`;
+  }
+  function collapsePromptIfEmpty() {
+    if (promptInput.value.trim()) return;
+    promptInput.classList.remove('expanded');
+    promptInput.style.height = '';
+  }
+  promptInput.addEventListener('input', autoGrowPrompt);
+  promptInput.addEventListener('focus', autoGrowPrompt);
+  promptInput.addEventListener('blur', collapsePromptIfEmpty);
   const attachBtn = document.getElementById('attachBtn');
   const fileInput = document.getElementById('fileInput');
   const attachmentsRow = document.getElementById('attachmentsRow');
@@ -617,15 +635,11 @@
     const footer = document.createElement('div');
     footer.className = 'fullscreen-preview-footer';
 
-    // `download` (nao so target=_blank) e o que faz o navegador oferecer um
-    // nome de arquivo de verdade em vez de tentar "salvar" a data: URL crua
-    // (o que gerava nomes tipo "2Q==.bin" no menu de contexto do Android).
-    const downloadBtn = document.createElement('a');
+    const downloadBtn = document.createElement('button');
+    downloadBtn.type = 'button';
     downloadBtn.className = 'code-action-btn primary';
-    downloadBtn.href = url;
-    downloadBtn.download = `multiia-${kind}.${kind === 'video' ? 'mp4' : 'png'}`;
-    downloadBtn.rel = 'noopener';
     downloadBtn.innerHTML = '⬇ <span>Baixar</span>';
+    downloadBtn.addEventListener('click', () => triggerDownload(url, `multiia-${kind}.${kind === 'video' ? 'mp4' : 'png'}`, downloadBtn));
     footer.appendChild(downloadBtn);
 
     fullscreenPreviewEl.append(header, media, footer);
@@ -635,6 +649,34 @@
   function closeFullscreenPreview() {
     if (fullscreenPreviewEl) fullscreenPreviewEl.remove();
     fullscreenPreviewEl = null;
+  }
+
+  // Baixa de fato (Salvar como) em vez de so abrir/navegar - o atributo
+  // `download` de um <a> e ignorado pelo navegador quando a URL e de outra
+  // origem (o caso do video, que vem direto de generativelanguage.googleapis.com),
+  // entao convertemos pra blob primeiro. Para video, passamos pelo proxy
+  // `/api/download-video` (mesma origem) antes de virar blob.
+  async function triggerDownload(url, filename, btn) {
+    const original = btn ? btn.innerHTML : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ <span>Baixando...</span>'; }
+    try {
+      const fetchUrl = url.startsWith('data:') ? url : `/api/download-video?url=${encodeURIComponent(url)}`;
+      const res = await fetch(fetchUrl);
+      if (!res.ok) throw new Error(`Erro ${res.status}`);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+    } catch {
+      window.open(url, '_blank');
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = original; }
+    }
   }
 
   // --- Gallery rendering ------------------------------------------------
@@ -669,14 +711,13 @@
     const actions = document.createElement('div');
     actions.className = 'media-actions';
     urls.forEach((url, idx) => {
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.className = 'code-action-btn';
-      a.download = `multiia-${kind}-${idx + 1}.${kind === 'video' ? 'mp4' : 'png'}`;
-      a.innerHTML = '⬇ <span>Abrir/Baixar</span>';
-      actions.appendChild(a);
+      const filename = `multiia-${kind}-${idx + 1}.${kind === 'video' ? 'mp4' : 'png'}`;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'code-action-btn';
+      btn.innerHTML = '⬇ <span>Baixar</span>';
+      btn.addEventListener('click', () => triggerDownload(url, filename, btn));
+      actions.appendChild(btn);
     });
     if (kind === 'image' && urls[0]) {
       const animateBtn = document.createElement('button');
@@ -845,6 +886,7 @@
         renderResultCard(card, { kind, urls: unsignedUrls, prompt: finalPrompt, modelLabel });
       }
       promptInput.value = '';
+      collapsePromptIfEmpty();
     } catch (err) {
       renderErrorCard(card, `Erro: ${err.message}`);
     } finally {

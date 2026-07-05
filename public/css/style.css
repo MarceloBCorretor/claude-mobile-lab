@@ -515,11 +515,17 @@ select:focus, input:focus, textarea:focus {
   border: none;
   background: transparent;
   resize: none;
-  max-height: 160px;
+  max-height: 100px;
+  overflow-y: auto;
   padding: 10px 4px;
   font-size: 16.5px;
+  transition: max-height 0.15s ease;
 }
 .composer-inner textarea:focus { border: none; }
+/* Enquanto o usuario esta editando, cresce pra usar boa parte da tela -
+   evita o campo virar uma caixinha minusucula com scroll interno apertado
+   quando o prompt e longo. Volta ao tamanho normal ao perder foco/esvaziar. */
+.composer-inner textarea.expanded { max-height: 50vh; }
 .send-btn, .attach-btn {
   display: flex;
   align-items: center;
