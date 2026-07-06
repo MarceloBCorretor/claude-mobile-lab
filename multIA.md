@@ -232,22 +232,51 @@ redeploy (adicionar a variável sozinha não redeploya automático).
 - Service worker (`service-worker.js`) usa estratégia **network-first** (não
   cache-first) para que deploys novos apareçam sem precisar limpar cache do site.
   Versão do cache é bumped manualmente (`CACHE_NAME`) a cada mudança relevante de
-  assets — está em `multiia-shell-v19` no momento.
-- **Bug de cache resolvido (2026-07-05):** mesmo com network-first, o usuário
-  ficava vendo versões antigas da UI (ex.: a proporção `1:1` já removida do
-  código continuava aparecendo no celular). Causa: o CDN estático da Vercel
-  (`outputDirectory: "public"`) aplica cache agressivo de borda pros arquivos
-  em `/js`, `/css`, `*.html` e o próprio `service-worker.js` por padrão, então
-  o `fetch()` dentro do handler network-first às vezes nem chegava a bater no
-  servidor de verdade. Corrigido em `vercel.json` com um bloco `headers` que
-  forca `Cache-Control: no-cache` (revalida sempre via ETag) nesses caminhos.
-  **Importante:** foi tentado também recarregar a página sozinha quando o
-  service worker novo assume o controle (`controllerchange` em `pwa.js`), mas
-  esse evento dispara também na *primeira* ativação (não só em atualizações de
-  verdade) — causava um reload inesperado que apagava o que a pessoa estivesse
-  digitando (ex.: a senha de login pela metade). Essa parte foi **revertida**;
-  o fix real é só o `Cache-Control` do `vercel.json` + o `reg.update()`
-  (checagem proativa, sem reload forçado) que ficou em `pwa.js`.
+  assets — está em `multiia-shell-v22` no momento. **`SW_VERSION` em
+  `public/js/pwa.js` precisa ser bumped junto, no mesmo valor** (ver próximo
+  item) — os dois viraram uma dupla que anda sempre junta.
+- **Bug de cache — três rodadas até resolver de vez (2026-07-05/06):** mesmo
+  com network-first, o usuário continuou vendo versões bem antigas da UI (ex.:
+  a aba de Áudio, adicionada há várias rodadas, simplesmente não aparecia; a
+  proporção `1:1` já removida continuava lá; o Omni Flash recém-adicionado não
+  aparecia na lista de modelos). Três causas em camadas, corrigidas uma a uma:
+  1. **CDN estático da Vercel** cacheava agressivamente `/js`, `/css`, `*.html`
+     e o `service-worker.js` — corrigido com `Cache-Control` no `vercel.json`
+     (tentativa 1, insuficiente sozinha).
+  2. **`fetch(request)` dentro do handler do service worker não força bypass
+     do cache HTTP do próprio navegador** — só reaproveitar `request` como veio
+     do evento `fetch` ainda respeita as regras normais de cache do browser,
+     então mesmo com o header do servidor certo, uma camada de cache local
+     podia responder sem nem tentar a rede. Corrigido com
+     `fetch(request, { cache: 'no-store' })`, que ignora *qualquer* cache HTTP
+     nessa chamada especificamente, sem depender de nenhum header do servidor.
+  3. **A atualização do `service-worker.js` em si dependia inteiramente do
+     `Cache-Control` do servidor pra ser detectada** — se esse header não
+     pegasse (por qualquer motivo, inclusive um erro de configuração que este
+     projeto não conseguiu confirmar de dentro do sandbox de desenvolvimento,
+     já que o acesso à internet de saída é bloqueado por política aqui, inclusive
+     pro próprio domínio de produção), o navegador podia nunca perceber que
+     existia uma versão nova pra baixar. Corrigido definitivamente registrando
+     o service worker com uma URL versionada
+     (`/service-worker.js?v=${SW_VERSION}`, `public/js/pwa.js`) — uma URL nunca
+     antes vista não pode estar "stale" em nenhuma camada de cache (do
+     navegador, de CDN, ou qualquer coisa no meio), então o navegador é
+     obrigado a buscá-la de verdade sempre que `SW_VERSION` muda, **independente
+     de qualquer `Cache-Control` estar certo ou não**. Esse é o fix que fecha o
+     ciclo pra sempre: a partir de agora, todo bump de versão vai propagar de
+     forma garantida.
+  **Nota importante pro usuário/futuras rodadas:** essa correção resolve tudo
+  **daqui pra frente** — mas o dispositivo que já ficou preso numa versão muito
+  antiga (sem nenhuma dessas correções) pode precisar de **uma única limpeza
+  manual** pra sair do estado travado (ex.: limpar dados do site nas
+  configurações do navegador, ou desinstalar/reinstalar o PWA), já que o
+  próprio mecanismo de correção também é código que precisa chegar até o
+  aparelho pela primeira vez.
+  Foi tentado também recarregar a página sozinha quando o service worker novo
+  assume o controle (`controllerchange` em `pwa.js`), mas esse evento dispara
+  também na *primeira* ativação (não só em atualizações de verdade) — causava
+  um reload inesperado que apagava o que a pessoa estivesse digitando (ex.: a
+  senha de login pela metade). Essa parte foi **revertida**.
 
 ### 6.3 Anexos no composer
 Botão 📎 aceita: imagens, `.txt/.md/.csv/.json`, e `.pdf`.
@@ -689,7 +718,8 @@ de prompt e uma galeria de resultados (mais recente no topo).
 | #19 | Fix download, layout full-width, trava de resolução e sanitização de personagens | `download` correto no preview em tela cheia (fix do nome de arquivo `2Q==.bin`), rodapé centralizado com botão de baixar, imagem em largura total, trava de `1080p` só com `16:9`, `sanitizeCopyrightedNames()` reescreve nomes de personagens protegidos antes de gerar, `promptFeedback.blockReason`/`finishReason` checados em `src/gemini.js` |
 | #20 | Fix cache estático, download de vídeo, campo de prompt expansível | `vercel.json` com `Cache-Control: no-cache` pra JS/CSS/HTML/service-worker (causa raiz do usuário ver UI desatualizada mesmo após deploy), `GET /api/download-video` (proxy same-origin) + `triggerDownload()` via Blob (fix real do download de vídeo, que é cross-origin e ignora o atributo `download`), `promptInput` expansível até 50vh ao editar |
 | #21 | Continuar cena (consistência entre clipes de vídeo) | Botão "🎬 Continuar cena" nos resultados de vídeo, `extractLastFrame()` extrai o último frame via canvas (passando pelo proxy `/api/download-video` pra evitar canvas tainted/CORS) e reenvia como referência do próximo trecho, mantendo o mesmo prompt |
-| #22 (a caminho) | Gemini Omni Flash como terceira opção de vídeo | `createOmniVideoJob`/`pollOmniVideoJob` em `src/gemini.js` (Interactions API, `POST /v1beta/interactions`), dispatch por prefixo do id do modelo em `server.js`, `gemini-omni-flash-preview` adicionado aos modelos padrão — formato não 100% confirmado contra a doc oficial (bloqueio de acesso automatizado), testado com `fetch` mockado |
+| #22 | Gemini Omni Flash como terceira opção de vídeo | `createOmniVideoJob`/`pollOmniVideoJob` em `src/gemini.js` (Interactions API, `POST /v1beta/interactions`), dispatch por prefixo do id do modelo em `server.js`, `gemini-omni-flash-preview` adicionado aos modelos padrão — formato não 100% confirmado contra a doc oficial (bloqueio de acesso automatizado), testado com `fetch` mockado |
+| #23 (a caminho) | Fix definitivo do cache travado (versão antiga persistindo) | `fetch(request, { cache: 'no-store' })` no service worker (bypassa cache HTTP do navegador, não só do servidor), registro do SW com URL versionada (`?v=SW_VERSION` em `pwa.js`, imune a qualquer Cache-Control errado), `Cache-Control: no-store` (antes `no-cache`) e rota `/` explícita no `vercel.json` |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
