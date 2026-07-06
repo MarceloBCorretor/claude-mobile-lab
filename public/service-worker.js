@@ -1,4 +1,4 @@
-const CACHE_NAME = 'multiia-shell-v19';
+const CACHE_NAME = 'multiia-shell-v20';
 const APP_SHELL = [
   '/',
   '/index.html',

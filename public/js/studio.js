@@ -726,7 +726,75 @@
       animateBtn.addEventListener('click', () => animateImage(urls[0]));
       actions.appendChild(animateBtn);
     }
+    if (kind === 'video' && urls[0]) {
+      const continueBtn = document.createElement('button');
+      continueBtn.type = 'button';
+      continueBtn.className = 'code-action-btn primary';
+      continueBtn.innerHTML = '🎬 <span>Continuar cena</span>';
+      continueBtn.addEventListener('click', () => continueScene(urls[0], prompt, continueBtn));
+      actions.appendChild(continueBtn);
+    }
     card.appendChild(actions);
+  }
+
+  // Extrai o ultimo frame de um video gerado, pra usar como referencia do
+  // proximo trecho (continuidade de cena/personagem/estilo). Passa pelo mesmo
+  // proxy same-origin usado pro download - ler pixels de um <video> cross-origin
+  // (a URL do Gemini) via canvas dispara erro de "canvas tainted" por CORS.
+  async function extractLastFrame(videoUrl) {
+    const res = await fetch(`/api/download-video?url=${encodeURIComponent(videoUrl)}`);
+    if (!res.ok) throw new Error(`Erro ${res.status} ao buscar o video`);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    try {
+      const video = document.createElement('video');
+      video.src = blobUrl;
+      video.muted = true;
+      video.playsInline = true;
+      await new Promise((resolve, reject) => {
+        video.addEventListener('loadedmetadata', resolve, { once: true });
+        video.addEventListener('error', () => reject(new Error('Falha ao carregar o video')), { once: true });
+      });
+      video.currentTime = Math.max(0, video.duration - 0.15);
+      await new Promise((resolve, reject) => {
+        video.addEventListener('seeked', resolve, { once: true });
+        video.addEventListener('error', () => reject(new Error('Falha ao buscar o ultimo frame')), { once: true });
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/png');
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
+  }
+
+  // Envia o ultimo frame do video gerado como referencia pro proximo trecho -
+  // mantem a mesma descricao de cena/estilo/camera, so precisa editar o que
+  // acontece a seguir. Cada trecho ainda e uma geracao independente (o Veo nao
+  // tem um modo nativo de "continuar video"), mas comecar do frame real do
+  // trecho anterior da bem mais consistencia de cenario/personagem/estilo do
+  // que um prompt novo do zero.
+  async function continueScene(url, prompt, btn) {
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ <span>Extraindo frame...</span>';
+    try {
+      const frameDataUrl = await extractLastFrame(url);
+      referenceImages = [{ name: 'ultimo-frame.png', dataUrl: frameDataUrl }];
+      renderAttachments();
+      promptInput.value = prompt;
+      autoGrowPrompt();
+      promptInput.focus();
+      promptInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      showBanner('ok', 'Ultimo frame do video enviado como referencia - edite o prompt descrevendo o que acontece a seguir e gere.');
+    } catch (err) {
+      showBanner('warn', `Nao foi possivel extrair o ultimo frame: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = original;
+    }
   }
 
   // Envia a imagem gerada como referencia de video, pra criar uma sequencia

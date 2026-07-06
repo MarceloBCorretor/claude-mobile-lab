@@ -366,6 +366,20 @@ de prompt e uma galeria de resultados (mais recente no topo).
   do upload manual) e deixa o prompt pronto pra editar — monta o fluxo
   "gerar uma cena estática, depois pedir pra animar essa mesma cena" que o
   usuário pediu, sem precisar baixar/reanexar a imagem manualmente.
+- **Continuar cena (vídeo → próximo trecho, consistência entre clipes):** todo
+  resultado de vídeo ganha um botão "🎬 Continuar cena" que extrai o **último
+  frame** do vídeo gerado e usa como foto de referência do próximo trecho,
+  mantendo o mesmo prompt (descrição de cenário/personagem/estilo/câmera) pro
+  usuário só editar o que acontece a seguir. `extractLastFrame()` em
+  `public/js/studio.js`: busca o vídeo através do proxy `/api/download-video`
+  (mesma origem — ler pixels de um `<video>` cross-origin via canvas dispara
+  erro de "canvas tainted"/CORS), carrega num `<video>` offscreen, dá seek pro
+  fim e desenha o frame num `<canvas>` pra virar `data:` URL. **Limitação:**
+  cada trecho continua sendo uma geração independente (o Veo não tem um modo
+  nativo de "continuar vídeo"), então existe um corte sutil entre os clipes —
+  mas a consistência de cenário/personagem/estilo fica bem mais sólida do que
+  um prompt novo do zero, porque o modelo enxerga o frame real do trecho
+  anterior como ponto de partida.
 - **Biblioteca de ideias de prompt:** dropdown "📖 Ideias de prompt" com ~37
   templates prontos, organizados em categorias (via `<optgroup>`) e
   **filtrados pelo tipo ativo** (`kind: 'image'`/`'video'`/`'both'` em cada
@@ -651,7 +665,8 @@ de prompt e uma galeria de resultados (mais recente no topo).
 | #17 | Transcrição de áudio + fix de layout mobile | `src/openai-audio.js` + aba Áudio no Estúdio (`kind: 'audio'`), fix de `.app-shell`/`.login-shell` usando `100svh` em vez de `100dvh` (barra inferior escondida atrás da barra de endereço do navegador) |
 | #18 | Fix proporção 1:1 inválida no Gemini + 9:16 como padrão | Remove `1:1` de `ASPECT_RATIOS` (rejeitada pela API real do Gemini), define `9:16` como padrão para imagem e vídeo |
 | #19 | Fix download, layout full-width, trava de resolução e sanitização de personagens | `download` correto no preview em tela cheia (fix do nome de arquivo `2Q==.bin`), rodapé centralizado com botão de baixar, imagem em largura total, trava de `1080p` só com `16:9`, `sanitizeCopyrightedNames()` reescreve nomes de personagens protegidos antes de gerar, `promptFeedback.blockReason`/`finishReason` checados em `src/gemini.js` |
-| #20 (a caminho) | Fix cache estático, download de vídeo, campo de prompt expansível | `vercel.json` com `Cache-Control: no-cache` pra JS/CSS/HTML/service-worker (causa raiz do usuário ver UI desatualizada mesmo após deploy), `GET /api/download-video` (proxy same-origin) + `triggerDownload()` via Blob (fix real do download de vídeo, que é cross-origin e ignora o atributo `download`), `promptInput` expansível até 50vh ao editar |
+| #20 | Fix cache estático, download de vídeo, campo de prompt expansível | `vercel.json` com `Cache-Control: no-cache` pra JS/CSS/HTML/service-worker (causa raiz do usuário ver UI desatualizada mesmo após deploy), `GET /api/download-video` (proxy same-origin) + `triggerDownload()` via Blob (fix real do download de vídeo, que é cross-origin e ignora o atributo `download`), `promptInput` expansível até 50vh ao editar |
+| #21 (a caminho) | Continuar cena (consistência entre clipes de vídeo) | Botão "🎬 Continuar cena" nos resultados de vídeo, `extractLastFrame()` extrai o último frame via canvas (passando pelo proxy `/api/download-video` pra evitar canvas tainted/CORS) e reenvia como referência do próximo trecho, mantendo o mesmo prompt |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
