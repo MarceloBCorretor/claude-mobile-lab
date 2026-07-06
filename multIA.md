@@ -44,6 +44,7 @@ campo **Provedor** (`provider`: `gemini` ou `openai`) que decide qual API/chave
 | GPT Image (OpenAI) | `gpt-image-1` | image | OpenAI direto |
 | Veo 3.1 Lite (rápido/barato) | `veo-3.1-lite-generate-preview` | video | Gemini direto |
 | Veo 3.1 Fast (qualidade) | `veo-3.1-fast-generate-preview` | video | Gemini direto |
+| Omni Flash (multimodal) | `gemini-omni-flash-preview` | video | Gemini direto (Interactions API) |
 | Transcrição rápida (OpenAI) | `gpt-4o-mini-transcribe` | audio | OpenAI direto |
 | Whisper clássico (OpenAI) | `whisper-1` | audio | OpenAI direto |
 
@@ -62,10 +63,14 @@ campo **Provedor** (`provider`: `gemini` ou `openai`) que decide qual API/chave
 > (Nano Banana 2 / Nano Banana 2 Lite) passaram a ser chamados direto no Gemini
 > em vez de via OpenRouter (mesmos modelos, API diferente, IDs sem prefixo
 > `google/`). Para vídeo, foi adicionado **Veo 3.1** (Lite/Fast) em vez do "Gemini
-> Omni Flash" que o usuário pediu inicialmente — Omni Flash usa uma API novíssima
-> ("Interactions API") sem exemplo de chamada HTTP crua disponível até o momento
-> da implementação, enquanto Veo 3.1 tem um contrato bem documentado
-> (`predictLongRunning` + polling). Decisão consciente de menor risco.
+> Omni Flash" que o usuário pediu inicialmente — na época, Omni Flash só existia
+> dentro do app oficial do Gemini, sem API REST pública documentada, enquanto
+> Veo 3.1 já tinha um contrato bem documentado (`predictLongRunning` + polling).
+> Decisão consciente de menor risco. **Atualização (2026-07-06):** o Google
+> liberou a API pública do Omni Flash em 30/06/2026 (`POST /v1beta/interactions`)
+> e o modelo foi adicionado como terceira opção de vídeo — ver seção 7 pra
+> detalhes e a ressalva sobre o formato não ter sido 100% confirmado contra a
+> doc oficial (bloqueio de acesso automatizado à página de docs do Google).
 >
 > **Segundo provedor de imagem (2026-07-05):** o usuário achou o GPT-Image da
 > OpenAI melhor que o Nano Banana pra infográficos/texto dentro da imagem e
@@ -511,21 +516,38 @@ de prompt e uma galeria de resultados (mais recente no topo).
   (`gemini-3.1-flash-lite-image`, padrão: rápido e barato), Nano Banana 2
   (`gemini-3.1-flash-image-preview`, mais qualidade, o dobro do preço) e GPT
   Image (`gpt-image-1`, OpenAI, melhor pra infográficos/texto dentro da
-  imagem segundo o usuário) — e duas de vídeo, Veo 3.1 Lite
-  (`veo-3.1-lite-generate-preview`, padrão, mais barato) e Veo 3.1 Fast
-  (`veo-3.1-fast-generate-preview`, mais qualidade) — e duas de áudio,
-  Transcrição rápida (`gpt-4o-mini-transcribe`, padrão) e Whisper clássico
+  imagem segundo o usuário) — e três de vídeo, Veo 3.1 Lite
+  (`veo-3.1-lite-generate-preview`, padrão, mais barato), Veo 3.1 Fast
+  (`veo-3.1-fast-generate-preview`, mais qualidade) e Omni Flash
+  (`gemini-omni-flash-preview`, multimodal, integração recente — ver ressalva
+  abaixo) — e duas de áudio, Transcrição rápida (`gpt-4o-mini-transcribe`,
+  padrão) e Whisper clássico
   (`whisper-1`) — ver tabela da seção 3. Editável em `/admin` como qualquer
   outro modelo. MiniMax foi removido das opções de vídeo (só continua
   existindo como modelo de **chat**, `minimax/minimax-m2.7`, isso não mudou).
-- **Gemini Omni Flash (vídeo) não foi implementado:** é o modelo que o usuário
-  pediu originalmente, mas usa uma API novíssima do Gemini ("Interactions API",
-  `client.interactions.create(...)`) sem nenhum exemplo de chamada HTTP crua
-  disponível até o momento desta implementação — implementar às cegas arriscaria
-  gastar crédito real numa integração provavelmente errada. Optou-se por **Veo
-  3.1** (Lite/Fast), que usa o padrão bem documentado `predictLongRunning` +
-  polling. Trocar para Omni Flash mais tarde é possível assim que a API dele
-  estiver melhor documentada.
+- **Gemini Omni Flash (vídeo) implementado (2026-07-06):** é o modelo que o
+  usuário pediu originalmente. Quando a integração foi feita pela primeira vez
+  neste projeto, o Omni Flash só existia dentro do app oficial do Gemini, sem
+  API REST documentada — implementar às cegas teria arriscado gastar crédito
+  real numa integração provavelmente errada, então optou-se só pelo **Veo
+  3.1** (Lite/Fast) nesse momento. O Google liberou a API pública em
+  30/06/2026 (endpoint `POST /v1beta/interactions`, modelo
+  `gemini-omni-flash-preview`, mesma chave `GEMINI_API_KEY`) e o modelo foi
+  adicionado como terceira opção de vídeo em `src/gemini.js`
+  (`createOmniVideoJob`/`pollOmniVideoJob`, dispatch por prefixo do id do
+  modelo em `server.js`, não por um `provider` separado). **Ressalva
+  importante:** a página oficial de docs do Google bloqueou a tentativa de
+  acesso automatizado (403) durante a implementação, então o formato exato do
+  request/response não pôde ser confirmado 100% contra a documentação
+  verbatim — foi implementado com o melhor esforço a partir de exemplos
+  encontrados publicamente, com extração de campos propositalmente flexível
+  (`extractOmniVideoUrls` varre a resposta procurando qualquer URI de
+  arquivo de vídeo, em vez de assumir um único formato fixo) e testado via
+  testes unitários com `fetch` mockado (não contra a API real, pra não gastar
+  crédito). **A primeira geração real com esse modelo é, na prática, o teste
+  de verdade do schema** — se os nomes de campo estiverem diferentes do
+  esperado, o erro real da API vai aparecer e precisa ser ajustado então
+  (mesmo padrão já usado antes pro `aspectRatio` do Veo).
 - **Conversa de voz ao vivo (OpenAI GPT-Realtime) — pedida, ainda não
   implementada.** O usuário confirmou que quer o recurso completo (chamada de
   voz bidirecional em tempo real com a IA), não uma narração simples de texto
@@ -666,7 +688,8 @@ de prompt e uma galeria de resultados (mais recente no topo).
 | #18 | Fix proporção 1:1 inválida no Gemini + 9:16 como padrão | Remove `1:1` de `ASPECT_RATIOS` (rejeitada pela API real do Gemini), define `9:16` como padrão para imagem e vídeo |
 | #19 | Fix download, layout full-width, trava de resolução e sanitização de personagens | `download` correto no preview em tela cheia (fix do nome de arquivo `2Q==.bin`), rodapé centralizado com botão de baixar, imagem em largura total, trava de `1080p` só com `16:9`, `sanitizeCopyrightedNames()` reescreve nomes de personagens protegidos antes de gerar, `promptFeedback.blockReason`/`finishReason` checados em `src/gemini.js` |
 | #20 | Fix cache estático, download de vídeo, campo de prompt expansível | `vercel.json` com `Cache-Control: no-cache` pra JS/CSS/HTML/service-worker (causa raiz do usuário ver UI desatualizada mesmo após deploy), `GET /api/download-video` (proxy same-origin) + `triggerDownload()` via Blob (fix real do download de vídeo, que é cross-origin e ignora o atributo `download`), `promptInput` expansível até 50vh ao editar |
-| #21 (a caminho) | Continuar cena (consistência entre clipes de vídeo) | Botão "🎬 Continuar cena" nos resultados de vídeo, `extractLastFrame()` extrai o último frame via canvas (passando pelo proxy `/api/download-video` pra evitar canvas tainted/CORS) e reenvia como referência do próximo trecho, mantendo o mesmo prompt |
+| #21 | Continuar cena (consistência entre clipes de vídeo) | Botão "🎬 Continuar cena" nos resultados de vídeo, `extractLastFrame()` extrai o último frame via canvas (passando pelo proxy `/api/download-video` pra evitar canvas tainted/CORS) e reenvia como referência do próximo trecho, mantendo o mesmo prompt |
+| #22 (a caminho) | Gemini Omni Flash como terceira opção de vídeo | `createOmniVideoJob`/`pollOmniVideoJob` em `src/gemini.js` (Interactions API, `POST /v1beta/interactions`), dispatch por prefixo do id do modelo em `server.js`, `gemini-omni-flash-preview` adicionado aos modelos padrão — formato não 100% confirmado contra a doc oficial (bloqueio de acesso automatizado), testado com `fetch` mockado |
 
 Todos os PRs foram mesclados com **squash** para `main`. A branch de trabalho
 (`claude/pwa-chat-open-ai-snbygj`) é resetada para `origin/main` no início de cada
@@ -706,10 +729,14 @@ sobre um PR já mesclado).
 - **Requer `GEMINI_API_KEY` e/ou `OPENAI_API_KEY` configuradas** (env var ou
   painel `/admin`) conforme os modelos habilitados — sem a chave do provedor
   certo, a geração retorna 503 com o nome da chave que falta.
-- Gemini Omni Flash (vídeo) não foi implementado — usa uma API novíssima
-  ("Interactions API") sem exemplo de chamada HTTP crua disponível; Veo 3.1 foi
-  usado no lugar por ter um contrato mais bem documentado. Reavaliar Omni Flash
-  quando a documentação/exemplos da Interactions API amadurecerem.
+- **Omni Flash é uma integração recente e não 100% verificada contra a doc
+  oficial** (ver detalhes na seção 7) — a API pública só existe desde
+  30/06/2026 e a página de docs do Google bloqueou tentativas de acesso
+  automatizado durante a implementação. A extração de resposta foi escrita de
+  forma flexível e testada com `fetch` mockado, mas a primeira geração real
+  serve como o teste de verdade do formato exato — se falhar com um erro sobre
+  campo/formato inesperado, é esperado precisar de um ajuste em
+  `src/gemini.js` (`createOmniVideoJob`/`pollOmniVideoJob`).
 - **GPT Image (OpenAI) não aceita foto de referência ainda** — só gera a
   partir de texto. Anexar uma referência com ele selecionado mostra um aviso e
   a referência é ignorada (não é enviada à API). Implementar isso exigiria o

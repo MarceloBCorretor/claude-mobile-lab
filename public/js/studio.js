@@ -936,7 +936,10 @@
         if (!startRes.ok) throw new Error(job.error || `Erro ${startRes.status}`);
 
         let status = job.status;
-        let unsignedUrls = [];
+        // Veo sempre volta "pending" no primeiro request (e' assincrono por
+        // natureza), mas o Omni Flash pode voltar ja completo na resposta
+        // inicial - captura unsignedUrls dali tambem, nao so do polling.
+        let unsignedUrls = job.unsignedUrls || [];
         const maxAttempts = 90;
         for (let i = 0; i < maxAttempts; i++) {
           if (status === 'completed' || status === 'failed') break;
