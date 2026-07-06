@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Telas Forte | Cartão Digital</title>
+
+    <link rel="icon" type="image/png" href="https://seuatendimento.info/corretores/everson/Telas%20Forte%20logo.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #002D62;
+            --primary-2: #00478f;
+            --steel: #aebccb;
+            --gleam: #e8f1fb;
+            --accent: #3b8fd6;
+            --wa: #25D366;
+            --text-main: #ffffff;
+            --text-sec: #d4dde6;
+            --card-glass: rgba(9, 14, 22, 0.88);
+            --card-border: rgba(174, 188, 203, 0.22);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Montserrat', sans-serif; }
+        html { height: 100%; }
+
+        body {
+            background-color: #04070d;
+            min-height: 100vh; min-height: 100dvh;
+            display: flex; justify-content: center; align-items: flex-start;
+            color: var(--text-main); padding: 20px 20px 120px;
+            overflow-y: auto; overflow-x: hidden;
+        }
+
+        /* --- CAMADAS DE FUNDO --- */
+        #bg-video-container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -3; overflow: hidden; background-color: #04070d;
+        }
+        #bg-video {
+            position: absolute; top: 50%; left: 50%; min-width: 100%; min-height: 100%; width: auto; height: auto;
+            transform: translate(-50%, -50%); object-fit: cover; will-change: transform; opacity: 0.45;
+        }
+        #bg-mesh {
+            position: fixed; inset: 0; z-index: -2; pointer-events: none; opacity: 0.10;
+            background-image:
+                linear-gradient(135deg, var(--steel) 1px, transparent 1px),
+                linear-gradient(45deg, var(--steel) 1px, transparent 1px);
+            background-size: 34px 34px;
+        }
+        #bg-vignette {
+            position: fixed; inset: 0; z-index: -1; pointer-events: none;
+            background: radial-gradient(circle at 50% 18%, rgba(0,71,143,0.35), transparent 55%),
+                        radial-gradient(circle at 50% 120%, rgba(0,0,0,0.9), transparent 60%);
+        }
+
+        /* --- CARTÃO --- */
+        .card {
+            background: var(--card-glass);
+            backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--card-border); border-radius: 24px; padding: 38px 24px 30px;
+            width: 100%; max-width: 420px; text-align: center; box-shadow: 0 24px 50px rgba(0, 0, 0, 0.6);
+            position: relative; display: flex; flex-direction: column; gap: 18px;
+            animation: fadeIn 0.9s ease; z-index: 1; margin: auto 0; overflow: hidden;
+        }
+        .card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1.5px;
+            background: linear-gradient(90deg, transparent, var(--gleam), var(--accent), transparent);
+        }
+
+        /* --- LOGO --- */
+        .profile-box {
+            width: 168px; height: 168px; margin: 6px auto 4px; border-radius: 20px; padding: 4px;
+            background: linear-gradient(145deg, var(--steel), #6c7e90 45%, #fff 50%, #6c7e90 55%, var(--steel));
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45); position: relative; z-index: 2;
+        }
+        .profile-inner {
+            width: 100%; height: 100%; border-radius: 16px; background: #ffffff;
+            display: flex; align-items: center; justify-content: center; padding: 14px;
+        }
+        .profile-img { width: 100%; height: 100%; object-fit: contain; }
+
+        h1 {
+            font-family: 'Oswald', sans-serif; font-size: 2.5rem; font-weight: 700; line-height: 1;
+            letter-spacing: 1.5px; text-transform: uppercase; text-shadow: 0 2px 10px rgba(0,0,0,0.6);
+            background: linear-gradient(180deg, #fff 30%, var(--steel)); -webkit-background-clip: text;
+            background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .role { color: var(--accent); font-weight: 600; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 2.5px; margin-top: 8px; }
+        .company { color: var(--text-sec); font-weight: 400; font-size: 0.85rem; margin-top: 8px; opacity: 0.92; padding: 0 6px; line-height: 1.5; }
+        .badge {
+            display: inline-flex; align-items: center; gap: 7px; margin-top: 12px; padding: 6px 16px;
+            border: 1px solid var(--card-border); border-radius: 50px; font-size: 0.72rem; font-weight: 600;
+            letter-spacing: 1px; text-transform: uppercase; color: var(--gleam); background: rgba(0,71,143,0.18);
+        }
+        .badge i { color: var(--accent); }
+
+        /* --- AÇÕES PRINCIPAIS --- */
+        .actions { margin-top: 6px; display: flex; flex-direction: column; gap: 11px; }
+        .btn {
+            display: flex; align-items: center; justify-content: center; gap: 10px; padding: 15px;
+            border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 1rem;
+            transition: all 0.3s ease; cursor: pointer; width: 100%; border: 1px solid transparent;
+        }
+        .btn i { font-size: 1.15rem; }
+        .btn-budget {
+            background: linear-gradient(135deg, var(--primary), var(--primary-2));
+            color: #fff; font-weight: 700; box-shadow: 0 8px 22px rgba(0, 45, 98, 0.5);
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .btn-budget:hover { filter: brightness(1.18); transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0, 71, 143, 0.6); }
+        .btn-save { background: rgba(174, 188, 203, 0.1); color: var(--gleam); border: 1px solid var(--card-border); }
+        .btn-save:hover { background: rgba(174, 188, 203, 0.2); transform: translateY(-2px); }
+        .btn-wa { background: rgba(37, 211, 102, 0.12); border: 1px solid rgba(37, 211, 102, 0.45); color: #40f07b; }
+        .btn-wa:hover { background: rgba(37, 211, 102, 0.22); transform: translateY(-2px); box-shadow: 0 6px 16px rgba(37, 211, 102, 0.2); }
+
+        /* --- SERVIÇOS --- */
+        .serv-hint {
+            display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 4px;
+            font-size: 0.72rem; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--gleam);
+        }
+        .serv-hint i { color: var(--accent); animation: tapBounce 1.6s ease-in-out infinite; }
+        @keyframes tapBounce { 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(4px); } }
+
+        .grid-serv { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; margin-top: 2px; }
+        .item-serv {
+            position: relative; background: rgba(0, 0, 0, 0.28); padding: 18px 8px 14px; border-radius: 12px; font-size: 0.82rem;
+            border: 1px solid rgba(59,143,214,0.15); transition: 0.3s; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 9px; color: #fff; font-weight: 500; cursor: pointer; text-align: center;
+            animation: cardGlow 3.2s ease-in-out infinite;
+        }
+        .item-serv:nth-child(2) { animation-delay: 0.4s; }
+        .item-serv:nth-child(3) { animation-delay: 0.8s; }
+        .item-serv:nth-child(4) { animation-delay: 1.2s; }
+        @keyframes cardGlow {
+            0%, 100% { border-color: rgba(59,143,214,0.15); box-shadow: 0 0 0 rgba(59,143,214,0); }
+            50% { border-color: rgba(59,143,214,0.55); box-shadow: 0 0 18px rgba(59,143,214,0.25); }
+        }
+        .item-serv::after {
+            content: "\f055"; font-family: "Font Awesome 6 Free"; font-weight: 900;
+            position: absolute; top: 9px; right: 11px; font-size: 0.85rem; color: var(--accent); opacity: 0.9;
+        }
+        .item-serv:hover {
+            animation: none; background: rgba(0, 71, 143, 0.28); border-color: var(--accent);
+            transform: translateY(-4px) scale(1.02); box-shadow: 0 10px 22px rgba(0,71,143,0.35);
+        }
+        .item-serv i.serv-ico { font-size: 1.7rem; color: var(--accent); }
+        .serv-arrow { font-size: 0.66rem; color: var(--steel); opacity: 0.85; font-weight: 600; }
+
+        /* --- DOCK FIXO (estilo app) --- */
+        .dock {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 900; display: flex; align-items: center; gap: 14px; padding: 12px 22px;
+            background: rgba(9, 14, 22, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--card-border); border-radius: 50px; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+            animation: dockRise 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes dockRise {
+            from { opacity: 0; transform: translateX(-50%) translateY(60px); }
+            to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        .dock::before {
+            content: ''; position: absolute; top: 0; left: 16%; right: 16%; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.6;
+        }
+        .dock-btn {
+            width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;
+            font-size: 1.65rem; border-radius: 50%; text-decoration: none;
+            cursor: pointer; border: 1px solid rgba(255,255,255,0.14); transition: all 0.3s ease;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.35);
+        }
+        .dock-btn:hover, .dock-btn:active { transform: translateY(-5px); filter: brightness(1.12); }
+
+        /* Botão Contato — mais largo (pílula) com rótulo, cor azul-aço da marca */
+        .dock-contato {
+            width: auto; min-width: 132px; gap: 9px; padding: 0 22px; border-radius: 50px;
+            background: linear-gradient(135deg, var(--primary-2), var(--accent)); color: #fff;
+            font-weight: 700; font-size: 1.05rem; box-shadow: 0 6px 18px rgba(0,71,143,0.5);
+        }
+        .dock-contato .dock-label { font-family: 'Montserrat', sans-serif; font-size: 0.95rem; letter-spacing: 0.4px; }
+        .dock-contato:hover { box-shadow: 0 10px 24px rgba(0,71,143,0.65); }
+
+        /* Instagram — gradiente oficial */
+        .dock-insta {
+            color: #fff;
+            background: radial-gradient(circle at 30% 110%, #fdf497 0%, #fd5949 45%, #d6249f 60%, #285AEB 90%);
+        }
+        .dock-insta:hover { box-shadow: 0 10px 24px rgba(214,36,159,0.55); }
+
+        /* Compartilhar — verde (associação imediata com WhatsApp/enviar) */
+        .dock-share {
+            color: #fff; background: linear-gradient(135deg, #25D366, #128C7E);
+        }
+        .dock-share:hover { box-shadow: 0 10px 24px rgba(37,211,102,0.55); }
+
+        /* --- MODAIS --- */
+        .modal {
+            display: none; position: fixed; inset: 0; z-index: 999; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.88); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            justify-content: center; align-items: center; opacity: 0; transition: opacity 0.3s ease; padding: 20px;
+        }
+        .modal.show { display: flex; opacity: 1; }
+        .modal-content {
+            position: relative; width: 100%; max-width: 500px; max-height: 88vh; overflow-y: auto;
+            background: rgba(9, 14, 22, 0.97); border-radius: 16px; border: 1px solid var(--accent);
+            box-shadow: 0 12px 45px rgba(0,0,0,0.9); animation: scaleUp 0.3s ease;
+        }
+        .info-header {
+            background: linear-gradient(90deg, var(--primary), #001a3a); padding: 24px 20px; text-align: center;
+            border-bottom: 2px solid var(--accent); position: sticky; top: 0; z-index: 10;
+        }
+        .info-header h2 {
+            font-family: 'Oswald', sans-serif; font-size: 1.5rem; color: #fff; text-transform: uppercase; letter-spacing: 1px;
+            display: flex; flex-direction: column; align-items: center; gap: 10px;
+        }
+        .info-header h2 i { font-size: 2rem; color: var(--accent); }
+        .info-body { padding: 22px; font-size: 1rem; line-height: 1.65; color: var(--text-sec); text-align: left; }
+        .info-body ul { list-style: none; margin-top: 15px; }
+        .info-body ul li {
+            margin-bottom: 11px; display: flex; align-items: center; gap: 12px;
+            background: rgba(255,255,255,0.04); padding: 12px 15px; border-radius: 8px;
+        }
+        .info-body ul li i { color: var(--accent); font-size: 1.1rem; width: 20px; text-align: center; }
+        .info-cta {
+            display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 20px;
+            background: var(--wa); color: #053; font-weight: 700; padding: 14px; border-radius: 10px;
+            text-decoration: none; transition: 0.3s;
+        }
+        .info-cta:hover { filter: brightness(1.08); transform: translateY(-2px); }
+
+        /* Linhas de contato (modal Contato) */
+        .contact-row {
+            display: flex; align-items: center; gap: 14px; padding: 16px; margin-bottom: 12px;
+            background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+            text-decoration: none; color: #fff; transition: 0.3s;
+        }
+        .contact-row:hover { background: rgba(0,71,143,0.22); border-color: var(--accent); transform: translateX(4px); }
+        .contact-row > i:first-child { font-size: 1.3rem; color: var(--accent); width: 28px; text-align: center; }
+        .contact-row .ct-text { display: flex; flex-direction: column; flex: 1; }
+        .contact-row .ct-text strong { font-size: 0.98rem; }
+        .contact-row .ct-text span { font-size: 0.82rem; color: var(--text-sec); }
+        .contact-row .chev { color: var(--steel); font-size: 0.85rem; width: auto; }
+
+        /* Formulário */
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 8px; font-size: 0.88rem; color: var(--gleam); font-weight: 600; }
+        .form-control {
+            width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 0.45); color: #fff; font-family: 'Montserrat', sans-serif; font-size: 1rem;
+        }
+        .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 8px rgba(59,143,214,0.5); }
+        select.form-control { appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill="%233b8fd6" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>'); background-repeat: no-repeat; background-position-x: 98%; background-position-y: 50%; }
+        textarea.form-control { resize: vertical; min-height: 70px; }
+        .btn-submit {
+            background: var(--wa); color: #053; font-weight: 700; border: none; padding: 15px; width: 100%;
+            border-radius: 8px; cursor: pointer; margin-top: 8px; font-size: 1.1rem; transition: 0.3s;
+            display: flex; justify-content: center; align-items: center; gap: 10px;
+        }
+        .btn-submit:hover { filter: brightness(1.08); transform: translateY(-2px); }
+
+        .close-modal {
+            position: absolute; top: 8px; right: 15px; color: #fff; font-size: 34px; font-weight: bold;
+            cursor: pointer; z-index: 1000; text-shadow: 0 2px 4px rgba(0,0,0,0.8); transition: 0.3s; line-height: 1;
+        }
+        .close-modal:hover { color: var(--accent); transform: scale(1.1); }
+
+        /* --- PREVIEW DE CONTATO (modal Salvar) --- */
+        .save-preview {
+            background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); border-radius: 14px;
+            padding: 18px 16px; margin-bottom: 18px; text-align: center;
+        }
+        .save-preview .sp-logo {
+            width: 76px; height: 76px; margin: 0 auto 10px; border-radius: 14px; background: #fff;
+            display: flex; align-items: center; justify-content: center; padding: 8px;
+        }
+        .save-preview .sp-logo img { width: 100%; height: 100%; object-fit: contain; }
+        .save-preview .sp-name { font-family: 'Oswald', sans-serif; font-size: 1.3rem; letter-spacing: 0.5px; color: #fff; }
+        .save-preview .sp-role { font-size: 0.78rem; color: var(--accent); text-transform: uppercase; letter-spacing: 1.5px; margin-top: 3px; }
+        .save-note {
+            background: rgba(0,71,143,0.16); border: 1px solid rgba(59,143,214,0.3); border-radius: 10px;
+            padding: 13px 15px; margin-top: 16px; font-size: 0.86rem; line-height: 1.55; color: var(--text-sec);
+            display: flex; gap: 10px; align-items: flex-start;
+        }
+        .save-note i { color: var(--accent); font-size: 1.05rem; margin-top: 2px; }
+        .save-note b { color: #fff; }
+        .btn-close-soft {
+            display: block; width: 100%; text-align: center; margin-top: 12px; padding: 13px;
+            background: transparent; border: 1px solid var(--card-border); border-radius: 10px;
+            color: var(--text-sec); font-weight: 600; font-size: 0.95rem; cursor: pointer; transition: 0.3s;
+        }
+        .btn-close-soft:hover { background: rgba(255,255,255,0.06); color: #fff; }
+        .btn-ghost {
+            display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%; margin-top: 10px;
+            padding: 13px; background: transparent; border: 1px dashed var(--card-border); border-radius: 10px;
+            color: var(--gleam); font-weight: 600; font-size: 0.92rem; cursor: pointer; transition: 0.3s;
+        }
+        .btn-ghost:hover { border-color: var(--accent); background: rgba(59,143,214,0.08); }
+
+        /* QR */
+        .qr-wrap { text-align: center; margin-top: 16px; display: none; }
+        .qr-wrap.show { display: block; animation: scaleUp 0.3s ease; }
+        .qr-box { background: #fff; padding: 16px; border-radius: 14px; display: inline-block; box-shadow: 0 8px 22px rgba(0,0,0,0.4); }
+        .qr-box img, .qr-box canvas { display: block; width: 200px; height: 200px; }
+        .qr-cap { font-size: 0.82rem; color: var(--text-sec); margin-top: 12px; line-height: 1.5; }
+
+        .toast {
+            position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+            background: var(--accent); color: #fff; padding: 12px 24px; border-radius: 50px; font-weight: 600;
+            opacity: 0; pointer-events: none; transition: 0.3s ease; z-index: 10000; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            display: flex; align-items: center; gap: 8px; font-size: 0.9rem;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(-10px); }
+
+        @keyframes scaleUp { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <!-- FUNDO: vídeo (Instagram) + malha + vinheta -->
+    <div id="bg-video-container">
+        <video autoplay muted loop playsinline webkit-playsinline id="bg-video" poster="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2070&auto=format&fit=crop">
+            <source src="https://criativopublicitario.com.br/projetos/Cartao%20de%20Visita/Telas_Forte/telas-forte-instagram.mp4" type="video/mp4">
+        </video>
+    </div>
+    <div id="bg-mesh"></div>
+    <div id="bg-vignette"></div>
+
+    <!-- MODAL CONTATO -->
+    <div id="contatoModal" class="modal" onclick="closeModalOutside(event, 'contatoModal')">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('contatoModal')">&times;</span>
+            <div class="info-header"><h2><i class="fas fa-address-card"></i> Fale Conosco</h2></div>
+            <div class="info-body">
+                <a class="contact-row" href="tel:+5565999896037">
+                    <i class="fas fa-phone-alt"></i>
+                    <div class="ct-text"><strong>Ligar</strong><span>(65) 99989-6037</span></div>
+                    <i class="fas fa-chevron-right chev"></i>
+                </a>
+                <a class="contact-row" href="mailto:telas.empresa@gmail.com">
+                    <i class="fas fa-envelope"></i>
+                    <div class="ct-text"><strong>E-mail</strong><span>telas.empresa@gmail.com</span></div>
+                    <i class="fas fa-chevron-right chev"></i>
+                </a>
+                <a class="contact-row" href="https://maps.google.com/?q=R.+Cust%C3%B3dia+God%C3%B3i,+Quadra+495+-+lote+459,125+-+%C3%81gua+Vermelha,+V%C3%A1rzea+Grande+-+MT,+78138-050" target="_blank">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <div class="ct-text"><strong>Como chegar</strong><span>Água Vermelha, Várzea Grande - MT</span></div>
+                    <i class="fas fa-chevron-right chev"></i>
+                </a>
+                <div class="contact-row" style="cursor:pointer" onclick="toggleQR('qrContato')">
+                    <i class="fas fa-qrcode"></i>
+                    <div class="ct-text"><strong>QR Code do contato</strong><span>Mostre para alguém escanear e salvar</span></div>
+                    <i class="fas fa-chevron-right chev"></i>
+                </div>
+                <div id="qrContato" class="qr-wrap">
+                    <div class="qr-box" id="qrContatoBox"></div>
+                    <p class="qr-cap">Aponte a câmera do outro celular para este código<br>para salvar o contato da Telas Forte.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SALVAR CONTATO -->
+    <div id="saveModal" class="modal" onclick="closeModalOutside(event, 'saveModal')">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('saveModal')">&times;</span>
+            <div class="info-header"><h2><i class="fas fa-user-plus"></i> Salvar Contato</h2></div>
+            <div class="info-body">
+                <div class="save-preview">
+                    <div class="sp-logo"><img src="https://seuatendimento.info/corretores/everson/Telas%20Forte%20logo.png" alt="Telas Forte" onerror="this.src='https://cdn-icons-png.flaticon.com/512/1995/1995515.png'"></div>
+                    <div class="sp-name">Telas Forte — Everson</div>
+                    <div class="sp-role">Telas e Cercamentos Metálicos</div>
+                </div>
+
+                <a class="contact-row" href="tel:+5565992131491">
+                    <i class="fas fa-mobile-alt"></i>
+                    <div class="ct-text"><strong>Celular / WhatsApp</strong><span>(65) 99213-1491</span></div>
+                    <i class="fas fa-phone chev"></i>
+                </a>
+                <a class="contact-row" href="tel:+5565999896037">
+                    <i class="fas fa-phone-alt"></i>
+                    <div class="ct-text"><strong>Comercial</strong><span>(65) 99989-6037</span></div>
+                    <i class="fas fa-phone chev"></i>
+                </a>
+                <a class="contact-row" href="mailto:telas.empresa@gmail.com">
+                    <i class="fas fa-envelope"></i>
+                    <div class="ct-text"><strong>E-mail</strong><span>telas.empresa@gmail.com</span></div>
+                    <i class="fas fa-chevron-right chev"></i>
+                </a>
+
+                <a class="info-cta" style="background: linear-gradient(135deg, var(--primary), var(--primary-2)); color:#fff;" href="#" onclick="saveContact(event)">
+                    <i class="fas fa-address-book"></i> Adicionar à minha agenda
+                </a>
+
+                <div class="save-note">
+                    <i class="fas fa-info-circle"></i>
+                    <span>Ao tocar acima, seu celular vai abrir o contato.<br>
+                    📱 <b>Android:</b> se aparecer uma lista "Abrir com", escolha <b>Contatos</b>.<br>
+                    🍎 <b>iPhone:</b> toque em <b>Criar novo contato</b>.</span>
+                </div>
+
+                <button class="btn-ghost" onclick="toggleQR('qrSave')">
+                    <i class="fas fa-qrcode"></i> Preferir? Mostrar QR Code do contato
+                </button>
+                <div id="qrSave" class="qr-wrap">
+                    <div class="qr-box" id="qrSaveBox"></div>
+                    <p class="qr-cap">Aponte a câmera de outro celular para salvar.</p>
+                </div>
+
+                <button class="btn-close-soft" onclick="closeModal('saveModal')">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SERVIÇOS -->
+    <div id="infoModal" class="modal" onclick="closeModalOutside(event, 'infoModal')">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('infoModal')">&times;</span>
+            <div class="info-header"><h2 id="infoTitle">Título</h2></div>
+            <div id="infoBody" class="info-body">Conteúdo</div>
+        </div>
+    </div>
+
+    <!-- MODAL ORÇAMENTO -->
+    <div id="budgetModal" class="modal" onclick="closeModalOutside(event, 'budgetModal')">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeModal('budgetModal')">&times;</span>
+            <div class="info-header"><h2><i class="fas fa-ruler-combined"></i> Solicitar Orçamento</h2></div>
+            <div class="info-body">
+                <p style="margin-bottom: 20px; font-size: 0.95rem;">Preencha os dados abaixo. Em segundos montamos sua mensagem e enviamos direto pelo WhatsApp para um orçamento rápido e preciso. 🏗️</p>
+                <form id="budgetForm" onsubmit="sendBudgetToWhatsApp(event)">
+                    <div class="form-group">
+                        <label>👤 Seu nome</label>
+                        <input type="text" id="b-nome" class="form-control" placeholder="Como podemos te chamar?" required>
+                    </div>
+                    <div class="form-group">
+                        <label>🧱 Qual produto você precisa?</label>
+                        <select id="b-produto" class="form-control" required>
+                            <option value="" disabled selected>Selecione...</option>
+                            <option value="Tela de Alambrado">Tela de Alambrado</option>
+                            <option value="Tela Soldada">Tela Soldada</option>
+                            <option value="Tela Artística / Decorativa">Tela Artística / Decorativa</option>
+                            <option value="Cercamento / Portão">Cercamento / Portão</option>
+                            <option value="Ainda não sei, preciso de orientação">Ainda não sei, preciso de orientação</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>🎯 Qual a finalidade?</label>
+                        <select id="b-finalidade" class="form-control" required>
+                            <option value="" disabled selected>Selecione...</option>
+                            <option value="Residencial">Residencial</option>
+                            <option value="Comercial / Industrial">Comercial / Industrial</option>
+                            <option value="Rural / Chácara / Sítio">Rural / Chácara / Sítio</option>
+                            <option value="Esportiva (quadra / campo)">Esportiva (quadra / campo)</option>
+                            <option value="Obra / Construção">Obra / Construção</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>📏 Metragem aproximada (metros lineares)</label>
+                        <input type="number" id="b-metragem" class="form-control" placeholder="Ex: 50" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>📐 Altura desejada</label>
+                        <select id="b-altura" class="form-control" required>
+                            <option value="" disabled selected>Selecione...</option>
+                            <option value="Até 1,0m">Até 1,0m</option>
+                            <option value="1,5m">1,5m</option>
+                            <option value="2,0m">2,0m</option>
+                            <option value="2,5m">2,5m</option>
+                            <option value="Acima de 2,5m">Acima de 2,5m</option>
+                            <option value="Não sei, preciso de orientação">Não sei, preciso de orientação</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>📍 Cidade / Local da obra</label>
+                        <input type="text" id="b-local" class="form-control" placeholder="Ex: Cuiabá - MT (Bairro Centro)" required>
+                    </div>
+                    <div class="form-group">
+                        <label>⏳ Prazo desejado</label>
+                        <select id="b-prazo" class="form-control" required>
+                            <option value="" disabled selected>Selecione...</option>
+                            <option value="Urgente">Urgente</option>
+                            <option value="Em até 15 dias">Em até 15 dias</option>
+                            <option value="Em até 30 dias">Em até 30 dias</option>
+                            <option value="Sem pressa, apenas orçando">Sem pressa, apenas orçando</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>📝 Observações (opcional)</label>
+                        <textarea id="b-obs" class="form-control" placeholder="Algum detalhe importante? Portão, terreno em desnível, prazo específico..."></textarea>
+                    </div>
+                    <button type="submit" class="btn-submit"><i class="fab fa-whatsapp"></i> Enviar Orçamento</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- CARTÃO -->
+    <div class="card">
+        <div>
+            <div class="profile-box">
+                <div class="profile-inner">
+                    <img src="https://seuatendimento.info/corretores/everson/Telas%20Forte%20logo.png" class="profile-img" alt="Logo Telas Forte" onerror="this.src='https://cdn-icons-png.flaticon.com/512/1995/1995515.png'">
+                </div>
+            </div>
+            <h1>Telas Forte</h1>
+            <p class="role">Telas e Cercamentos Metálicos</p>
+            <p class="company">Qualidade, resistência e confiança em cada metro instalado.</p>
+            <div class="badge"><i class="fas fa-award"></i> + de 28 anos no mercado</div>
+        </div>
+
+        <div class="actions">
+            <button class="btn btn-budget" onclick="openBudgetModal()"><i class="fas fa-ruler-combined"></i> Solicitar Orçamento</button>
+            <button class="btn btn-save" onclick="openSaveModal()"><i class="fas fa-address-book"></i> Salvar na Agenda</button>
+            <a href="https://wa.me/5565992131491?text=Ol%C3%A1%2C%20gostaria%20de%20falar%20com%20a%20Telas%20Forte!" target="_blank" class="btn btn-wa"><i class="fab fa-whatsapp"></i> WhatsApp Direto</a>
+        </div>
+
+        <div class="serv-hint"><i class="fas fa-hand-pointer"></i> Toque nos serviços para ver detalhes</div>
+        <div class="grid-serv">
+            <div class="item-serv" onclick="openInfoModal('alambrado')">
+                <i class="fas fa-border-all serv-ico"></i> Telas de Alambrado <span class="serv-arrow">ver detalhes ›</span>
+            </div>
+            <div class="item-serv" onclick="openInfoModal('soldada')">
+                <i class="fas fa-th serv-ico"></i> Telas Soldadas <span class="serv-arrow">ver detalhes ›</span>
+            </div>
+            <div class="item-serv" onclick="openInfoModal('artistica')">
+                <i class="fas fa-vector-square serv-ico"></i> Telas Artísticas <span class="serv-arrow">ver detalhes ›</span>
+            </div>
+            <div class="item-serv" onclick="openInfoModal('cercamentos')">
+                <i class="fas fa-shield-alt serv-ico"></i> Cercamentos <span class="serv-arrow">ver detalhes ›</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- DOCK FIXO -->
+    <div class="dock">
+        <button class="dock-btn dock-contato" onclick="openContatoModal()" title="Contato"><i class="fas fa-address-card"></i><span class="dock-label">Contato</span></button>
+        <a href="https://www.instagram.com/telasforteevg/" target="_blank" class="dock-btn dock-insta" title="Instagram"><i class="fab fa-instagram"></i></a>
+        <button class="dock-btn dock-share" onclick="shareCard()" title="Compartilhar"><i class="fas fa-share-nodes"></i></button>
+    </div>
+
+    <div id="toastMessage" class="toast"></div>
+
+    <script>
+        /* --- MODAIS --- */
+        function openContatoModal() { document.getElementById('contatoModal').classList.add('show'); }
+        function openBudgetModal() { document.getElementById('budgetModal').classList.add('show'); }
+        function openInfoModal(key) {
+            if (servicesInfo[key]) {
+                document.getElementById('infoTitle').innerHTML = servicesInfo[key].title;
+                document.getElementById('infoBody').innerHTML = servicesInfo[key].body;
+                document.getElementById('infoModal').classList.add('show');
+            }
+        }
+        function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+        function closeModalOutside(e, id) { if (e.target === document.getElementById(id)) closeModal(id); }
+
+        /* --- CONTEÚDO DOS SERVIÇOS --- */
+        const waBase = "https://wa.me/5565992131491?text=";
+        const servicesInfo = {
+            alambrado: {
+                title: "<i class='fas fa-border-all'></i> Telas de Alambrado",
+                body: `
+                    <p>A solução mais versátil e econômica para delimitar e proteger qualquer área com durabilidade.</p>
+                    <ul>
+                        <li><i class="fas fa-check-circle"></i> Fio galvanizado ou revestido em PVC</li>
+                        <li><i class="fas fa-check-circle"></i> Ideal para quadras, campos e terrenos</li>
+                        <li><i class="fas fa-check-circle"></i> Alta resistência à corrosão e ao tempo</li>
+                        <li><i class="fas fa-check-circle"></i> Instalação rápida e custo acessível</li>
+                    </ul>
+                    <a class="info-cta" target="_blank" href="${waBase}${encodeURIComponent('Olá! Tenho interesse em Telas de Alambrado. Pode me passar um orçamento?')}"><i class="fab fa-whatsapp"></i> Quero orçar Alambrado</a>
+                `
+            },
+            soldada: {
+                title: "<i class='fas fa-th'></i> Telas Soldadas",
+                body: `
+                    <p>Rigidez e acabamento superior para projetos que exigem firmeza e estética limpa.</p>
+                    <ul>
+                        <li><i class="fas fa-check-circle"></i> Pontos soldados de alta resistência</li>
+                        <li><i class="fas fa-check-circle"></i> Painéis firmes, sem deformação</li>
+                        <li><i class="fas fa-check-circle"></i> Perfeitas para muros, viveiros e indústrias</li>
+                        <li><i class="fas fa-check-circle"></i> Visual moderno e padronizado</li>
+                    </ul>
+                    <a class="info-cta" target="_blank" href="${waBase}${encodeURIComponent('Olá! Tenho interesse em Telas Soldadas. Pode me passar um orçamento?')}"><i class="fab fa-whatsapp"></i> Quero orçar Tela Soldada</a>
+                `
+            },
+            artistica: {
+                title: "<i class='fas fa-vector-square'></i> Telas Artísticas",
+                body: `
+                    <p>Quando proteção encontra design: peças decorativas que valorizam fachadas e ambientes.</p>
+                    <ul>
+                        <li><i class="fas fa-check-circle"></i> Desenhos e padrões personalizados</li>
+                        <li><i class="fas fa-check-circle"></i> Acabamento sob medida para o seu projeto</li>
+                        <li><i class="fas fa-check-circle"></i> Combina segurança com sofisticação</li>
+                        <li><i class="fas fa-check-circle"></i> Diferencial visual para residências e comércios</li>
+                    </ul>
+                    <a class="info-cta" target="_blank" href="${waBase}${encodeURIComponent('Olá! Tenho interesse em Telas Artísticas / Decorativas. Pode me ajudar?')}"><i class="fab fa-whatsapp"></i> Quero orçar Tela Artística</a>
+                `
+            },
+            cercamentos: {
+                title: "<i class='fas fa-shield-alt'></i> Cercamentos",
+                body: `
+                    <p>Soluções completas de cercamento e portões para máxima segurança do seu patrimônio.</p>
+                    <ul>
+                        <li><i class="fas fa-check-circle"></i> Projeto sob medida para o terreno</li>
+                        <li><i class="fas fa-check-circle"></i> Materiais robustos e tratados</li>
+                        <li><i class="fas fa-check-circle"></i> Residencial, rural e industrial</li>
+                        <li><i class="fas fa-check-circle"></i> Mão de obra especializada</li>
+                    </ul>
+                    <a class="info-cta" target="_blank" href="${waBase}${encodeURIComponent('Olá! Tenho interesse em Cercamentos / Portões. Pode me passar um orçamento?')}"><i class="fab fa-whatsapp"></i> Quero orçar Cercamento</a>
+                `
+            }
+        };
+
+        /* --- ORÇAMENTO VIA WHATSAPP --- */
+        function sendBudgetToWhatsApp(event) {
+            event.preventDefault();
+            const v = id => document.getElementById(id).value;
+            let msg = `*SOLICITAÇÃO DE ORÇAMENTO - TELAS FORTE* 🏗️\n\n`;
+            msg += `Olá! Gostaria de um orçamento. Seguem os dados:\n\n`;
+            msg += `👤 *Nome:* ${v('b-nome')}\n`;
+            msg += `🧱 *Produto:* ${v('b-produto')}\n`;
+            msg += `🎯 *Finalidade:* ${v('b-finalidade')}\n`;
+            msg += `📏 *Metragem:* ${v('b-metragem')} metros lineares\n`;
+            msg += `📐 *Altura:* ${v('b-altura')}\n`;
+            msg += `📍 *Local:* ${v('b-local')}\n`;
+            msg += `⏳ *Prazo:* ${v('b-prazo')}\n`;
+            if (v('b-obs').trim() !== '') msg += `📝 *Observações:* ${v('b-obs')}\n`;
+            msg += `\nAguardo o retorno. Obrigado!`;
+            window.open(`https://wa.me/5565992131491?text=${encodeURIComponent(msg)}`, '_blank');
+            closeModal('budgetModal');
+            document.getElementById('budgetForm').reset();
+        }
+
+        /* --- COMPARTILHAR (link público do cartão) --- */
+        const CARD_URL = "https://criativopublicitario.com.br/projetos/Cartao%20de%20Visita/Telas_Forte/Everson.html";
+        function showToast(m) {
+            const t = document.getElementById('toastMessage');
+            t.innerHTML = `<i class="fas fa-check-circle"></i> ` + m;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+        function shareCard() {
+            const data = { title: 'Telas Forte | Cartão Digital', text: 'Conheça a Telas Forte e solicite seu orçamento!', url: CARD_URL };
+            if (navigator.share) {
+                navigator.share(data).catch(e => console.log('Compartilhamento cancelado', e));
+            } else {
+                navigator.clipboard.writeText(CARD_URL)
+                    .then(() => showToast('Link copiado para compartilhar!'))
+                    .catch(() => {
+                        const d = document.createElement('input');
+                        document.body.appendChild(d); d.value = CARD_URL; d.select();
+                        document.execCommand('copy'); document.body.removeChild(d);
+                        showToast('Link copiado para compartilhar!');
+                    });
+            }
+        }
+
+        /* --- SALVAR CONTATO ---
+           Não existe API web que grave o contato direto na agenda (segurança do navegador).
+           O caminho amigável: mostrar o contato na tela (já tocável p/ ligar) e, ao confirmar,
+           entregar o arquivo do contato com o passo final guiado. */
+        const VCARD = `BEGIN:VCARD
+VERSION:3.0
+N:Everson;Telas Forte;;;
+FN:Telas Forte Everson
+ORG:Telas Forte
+TITLE:Telas e Cercamentos Metálicos
+EMAIL;TYPE=INTERNET;TYPE=WORK:telas.empresa@gmail.com
+TEL;TYPE=CELL:+5565992131491
+TEL;TYPE=WORK;TYPE=VOICE:+5565999896037
+ADR;TYPE=WORK:;;R. Custódia Godói\\, Quadra 495 - lote 459\\,125 - Água Vermelha;Várzea Grande;MT;78138-050;BR
+URL:https://www.instagram.com/telasforteevg/
+PHOTO;VALUE=URI:https://seuatendimento.info/corretores/everson/Telas%20Forte%20logo.png
+NOTE:CNPJ 62.138.778/0001-19 - TELAS FORTE INDUSTRIA E COMERCIO LTDA\\n25.92-6-02 - Fabricação de produtos de trefilados de metal\\, exceto padronizados\\n47.44-0-01 - Comércio varejista de ferragens e ferramentas
+CATEGORIES:myContacts
+END:VCARD`;
+
+        // vCard enxuto (sem foto/observações longas) para o QR escanear fácil
+        const VCARD_QR = `BEGIN:VCARD
+VERSION:3.0
+N:Everson;Telas Forte;;;
+FN:Telas Forte Everson
+ORG:Telas Forte
+TITLE:Telas e Cercamentos Metálicos
+TEL;TYPE=CELL:+5565992131491
+TEL;TYPE=WORK:+5565999896037
+EMAIL:telas.empresa@gmail.com
+URL:https://www.instagram.com/telasforteevg/
+END:VCARD`;
+
+        function openSaveModal() { document.getElementById('saveModal').classList.add('show'); }
+
+        function saveContact(event) {
+            if (event) event.preventDefault();
+            const blob = new Blob([VCARD], { type: 'text/vcard;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'Everson_Telas_Forte.vcf';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(link.href); }, 150);
+        }
+
+        /* --- QR CODE (gerado sob demanda) --- */
+        const qrDone = {};
+        function buildQR(boxId) {
+            if (qrDone[boxId]) return;
+            const box = document.getElementById(boxId);
+            box.innerHTML = '';
+            new QRCode(box, { text: VCARD_QR, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.M });
+            qrDone[boxId] = true;
+        }
+        function toggleQR(wrapId) {
+            const wrap = document.getElementById(wrapId);
+            const boxId = wrapId === 'qrSave' ? 'qrSaveBox' : 'qrContatoBox';
+            if (!wrap.classList.contains('show')) buildQR(boxId);
+            wrap.classList.toggle('show');
+        }
+    </script>
+</body>
+</html>
