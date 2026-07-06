@@ -153,4 +153,80 @@ async function pollVideoJob({ apiKey, jobId }) {
   return { id: jobId, status: urls.length ? 'completed' : 'failed', unsignedUrls: urls };
 }
 
-module.exports = { generateImage, createVideoJob, pollVideoJob };
+// Omni Flash (gemini-omni-flash-preview) usa um endpoint/formato diferente do
+// Veo - a "Interactions API" (POST /v1beta/interactions), liberada pro publico
+// so em 30/06/2026. NAO ha confirmacao 100% verbatim da doc oficial aqui (a
+// pagina de docs do Google bloqueou a busca automatizada com 403) - o formato
+// abaixo e o melhor esforco com base em exemplos encontrados publicamente.
+// Se a resposta real da API tiver nomes de campo diferentes, isso vai
+// aparecer como erro claro (via geminiFetch) na primeira chamada de verdade,
+// e precisa ser ajustado entao - mesmo padrao ja usado pro aspectRatio do Veo.
+function extractOmniVideoUrls(node, apiKey) {
+  if (!node || typeof node !== 'object') return [];
+  const candidates = [];
+  const visit = (n) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(visit); return; }
+    const uri = n.uri || n.file_uri || n.fileUri;
+    if (uri && typeof uri === 'string') candidates.push(uri);
+    Object.values(n).forEach(visit);
+  };
+  visit(node);
+  return candidates
+    .filter((uri) => /\.(mp4|webm|mov)(\?|$)/i.test(uri) || /\/files\//.test(uri))
+    .map((uri) => {
+      const base = uri.startsWith('http') ? uri : `${BASE_URL}/${uri.replace(/^\/+/, '')}`;
+      const sep = base.includes('?') ? '&' : '?';
+      return `${base}${sep}key=${apiKey}`;
+    });
+}
+
+async function createOmniVideoJob({ apiKey, model, prompt, aspectRatio, resolution, referenceImage }) {
+  const input = [];
+  const refPart = referenceImage ? dataUrlToInlinePart(referenceImage) : null;
+  if (refPart) {
+    input.push({ type: 'image', mime_type: refPart.inline_data.mime_type, data: refPart.inline_data.data });
+  }
+  input.push({ type: 'text', text: prompt });
+
+  const responseFormat = { type: 'video' };
+  if (aspectRatio) responseFormat.aspect_ratio = aspectRatio;
+  if (resolution) responseFormat.resolution = resolution;
+
+  const data = await geminiFetch('interactions', {
+    apiKey,
+    method: 'POST',
+    body: { model, input: refPart ? input : prompt, response_format: responseFormat }
+  });
+
+  const urls = extractOmniVideoUrls(data, apiKey);
+  if (urls.length) {
+    return { id: `omni:${data.name || data.id || 'done'}`, status: 'completed', unsignedUrls: urls };
+  }
+  return { id: `omni:${data.name || data.id}`, status: 'pending' };
+}
+
+async function pollOmniVideoJob({ apiKey, jobId }) {
+  const data = await geminiFetch(jobId, { apiKey });
+  if (data.error) {
+    const err = new Error(data.error.message || 'Falha na geracao de video (Omni Flash)');
+    err.status = data.error.code;
+    throw err;
+  }
+  const urls = extractOmniVideoUrls(data, apiKey);
+  if (urls.length) return { id: jobId, status: 'completed', unsignedUrls: urls };
+  if (data.status === 'failed' || data.state === 'FAILED') {
+    const err = new Error('A geracao do video (Omni Flash) falhou.');
+    err.status = 502;
+    throw err;
+  }
+  return { id: jobId, status: 'processing', unsignedUrls: [] };
+}
+
+module.exports = {
+  generateImage,
+  createVideoJob,
+  pollVideoJob,
+  createOmniVideoJob,
+  pollOmniVideoJob
+};

@@ -103,7 +103,12 @@ app.post('/api/generate/video', session.requireAdmin, async (req, res) => {
     return res.status(503).json({ error: 'Chave do Gemini (Google AI Studio) nao configurada. Peca ao administrador para configura-la em /admin.' });
   }
   try {
-    const job = await gemini.createVideoJob({ apiKey: config.geminiApiKey, model: modelId, prompt, aspectRatio, resolution, referenceImage });
+    // Omni Flash usa a Interactions API (endpoint/formato diferente do Veo) -
+    // detectado pelo prefixo do id do modelo, nao por um campo "provider"
+    // separado (a chave usada e a mesma, GEMINI_API_KEY).
+    const job = modelId.startsWith('gemini-omni')
+      ? await gemini.createOmniVideoJob({ apiKey: config.geminiApiKey, model: modelId, prompt, aspectRatio, resolution, referenceImage })
+      : await gemini.createVideoJob({ apiKey: config.geminiApiKey, model: modelId, prompt, aspectRatio, resolution, referenceImage });
     res.json(job);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || 'Falha ao iniciar geracao de video' });
@@ -116,7 +121,9 @@ app.get('/api/generate/video/:jobId(.*)', session.requireAdmin, async (req, res)
     return res.status(503).json({ error: 'Chave do Gemini (Google AI Studio) nao configurada.' });
   }
   try {
-    const status = await gemini.pollVideoJob({ apiKey: config.geminiApiKey, jobId: req.params.jobId });
+    const status = req.params.jobId.startsWith('omni:')
+      ? await gemini.pollOmniVideoJob({ apiKey: config.geminiApiKey, jobId: req.params.jobId.slice('omni:'.length) })
+      : await gemini.pollVideoJob({ apiKey: config.geminiApiKey, jobId: req.params.jobId });
     res.json(status);
   } catch (err) {
     res.status(err.status || 502).json({ error: err.message || 'Falha ao consultar status do video' });

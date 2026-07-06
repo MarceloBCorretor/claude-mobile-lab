@@ -21,6 +21,7 @@ const DEFAULT_MODELS = [
   { id: 'gpt-image-1', label: 'GPT Image (OpenAI)', enabled: true, kind: 'image', provider: 'openai' },
   { id: 'veo-3.1-lite-generate-preview', label: 'Veo 3.1 Lite (rapido/barato)', enabled: true, kind: 'video', provider: 'gemini' },
   { id: 'veo-3.1-fast-generate-preview', label: 'Veo 3.1 Fast (qualidade)', enabled: true, kind: 'video', provider: 'gemini' },
+  { id: 'gemini-omni-flash-preview', label: 'Omni Flash (multimodal)', enabled: true, kind: 'video', provider: 'gemini' },
   { id: 'gpt-4o-mini-transcribe', label: 'Transcricao rapida (OpenAI)', enabled: true, kind: 'audio', provider: 'openai' },
   { id: 'whisper-1', label: 'Whisper classico (OpenAI)', enabled: true, kind: 'audio', provider: 'openai' }
 ];
