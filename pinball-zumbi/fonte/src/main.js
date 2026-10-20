@@ -1,7 +1,7 @@
 import { createRenderer } from './render.js';
 import { loadAssets } from './assets.js';
 import { stepPhysics, flippers, WALL } from './physics.js';
-import { SCEN, PLAN, TYPES, ORDER, DMG, MAXLVL, DANGER, SR, POCKET, LAUNCHER, VIEW, WAVES_PER_SCEN, SPAWN, TREE, BR, BR_GOLD, BR_SEED, PLANT_HP, PLANT_DECAY, BITE, SEEK_RANGE, BALLS_PER_PHASE, HEART_EVERY, MAX_LIVES, LAST_WAVE_LEAKS_PER_LIFE, priceFor } from './config.js';
+import { SCEN, PLAN, TYPES, ORDER, DMG, MAXLVL, DANGER, SR, POCKET, LAUNCHER, VIEW, WAVES_PER_SCEN, SPAWN, TREE, BR, BR_GOLD, BR_SEED, PLANT_HP, PLANT_DECAY, BITE, SEEK_RANGE, BALLS_PER_PHASE, HEART_EVERY, MAX_LIVES, LAST_WAVE_LEAKS_PER_LIFE, priceFor, enemyMul } from './config.js';
 import { snd, vib, isMuted, setMuted, unlockAudio } from './audio.js';
 
 const $ = id => document.getElementById(id);
@@ -24,9 +24,18 @@ const slots = [], zombies = [], shots = [], obstacles = [], parts = [], trail = 
 const input = { kL: false, kR: false, ptrs: new Map(), charging: false, charge: 0, aim: 0, drag: null, armed: null };
 let hotSlot = -1, felipe = { mood: '', until: 0, prio: 0 }, lastFace = '', shake = 0, noteUntil = 0, tagUntil = 0, ghost = null, dragIdx = -1;
 
-// retratos do guia de reações do Felipe (feliz, triste, assustado, concentrado, vitória, upiii)
-const FACE_FILES = { feliz: 'feliz', concentrado: 'concentrado', assustado: 'assustado', triste: 'triste', vitoria: 'vitoria', upiii: 'upiii' };
-const FACES = {}; for (const m in FACE_FILES) { const i = new Image(); i.src = `assets/felipe/${FACE_FILES[m]}.webp`; FACES[m] = i.src; }
+// retratos do Felipe: 3 personagens x 5 humores (só visual, não muda a jogabilidade)
+const CHARS = [{ id: 'escola', nome: 'Felipe na Escola' }, { id: 'esportivo', nome: 'Felipe Esportivo' }, { id: 'zumbi', nome: 'Felipe Zumbi' }];
+const MOODS = ['feliz', 'concentrado', 'assustado', 'triste', 'vitoria'];
+let FACES = {};
+function pickChar(id) {
+  if (!CHARS.some(c => c.id === id)) id = 'escola';
+  save.char = id; FACES = {};
+  for (const m of MOODS) FACES[m] = `assets/felipe/${id}_${m}.webp`;
+  FACES.upiii = FACES.vitoria;
+  lastFace = ''; const f = $('face'); if (f) f.src = FACES.feliz;
+}
+for (const c of CHARS) for (const m of MOODS) new Image().src = `assets/felipe/${c.id}_${m}.webp`;
 function setFelipe(mood, dur, prio) { const n = performance.now(); if (n < felipe.until && prio < felipe.prio) return; felipe = { mood, until: n + dur * 1000, prio }; }
 function faceNow() {
   if (performance.now() < felipe.until) return felipe.mood;
@@ -145,7 +154,7 @@ function spawnZombie(boss) {
   if (boss) type = 'boss';
   else if (G.spawned % 4 === 0) type = 'runner';                    // de tempos em tempos vem um bem mais rápido
   else if (n >= 3 && r < .18) type = 'runner'; else if (n >= 2 && r < .5) type = 'cone';
-  const base = 3 + .9 * n + 1.3 * si, sp = Math.min(46, 19 + 2 * n + 3 * si);
+  const base = 3 + .9 * n + 1.3 * si, sp = Math.min(46, 19 + 2 * n) * enemyMul(si);
   const spec = { normal: [1, 1, 22, 8, 60], cone: [2.2, 1, 22, 12, 90], runner: [.6, 1.9, 19, 10, 80], boss: [10, .55, 34, 60, 600] }[type];
   const z = { type, x: SPAWN.x + (Math.random() - .5) * 24, y: SPAWN.y, lane: 130 + Math.random() * 280, side: {}, vari: type === 'boss' ? 1 : .8 + Math.random() * .45, ph: Math.random() * 6, flash: 0, slow: 0, stun: 0, dead: false, hitCd: 0, wander: Math.random() * 6, px: SPAWN.x, py: SPAWN.y };
   z.hp = z.maxhp = base * spec[0]; z.sp = sp * spec[1]; z.r = spec[2]; z.coin = spec[3] + n + si * 2; z.pts = spec[4];
@@ -343,7 +352,7 @@ function update(dt) {
     const z = zombies[i]; if (z.dead) { zombies.splice(i, 1); continue; }
     z.ph += dt * (z.eating ? 15 : z.type === 'runner' ? 11 : 6.5 * z.vari); z.flash = Math.max(0, z.flash - dt); z.stun = Math.max(0, z.stun - dt);
     // o zumbi vai atrás da planta mais próxima; ao chegar, para e a come (a planta não resiste)
-    if (!z.target || !z.target.plant) { z.target = null; let bd = SEEK_RANGE; for (const sl of slots) if (sl.plant) { const d = Math.hypot(sl.x - z.x, sl.y - z.y); if (d < bd) { bd = d; z.target = sl; } } }
+    if (!z.target || !z.target.plant) { z.target = null; let bd = SEEK_RANGE * enemyMul(scenIdx); for (const sl of slots) if (sl.plant) { const d = Math.hypot(sl.x - z.x, sl.y - z.y); if (d < bd) { bd = d; z.target = sl; } } }
     z.eating = false;
     if (z.stun <= 0) {
       const k = (z.slow > 0 ? .5 : 1) * z.vari;
@@ -483,7 +492,14 @@ function buildLevels() {
 function toMenu() { state = 'menu'; showScreen('menu'); $('menuBest').textContent = save.best ? 'Recorde: ' + save.best : ''; }
 $('hJogar').onclick = () => { unlockAudio(); startGame(0); };
 $('hCen').onclick = () => { buildLevels(); showScreen('levels'); };
-$('hPers').onclick = () => showScreen('chars');
+let pickTmp = 'escola';
+function buildChars() {
+  pickTmp = save.char || 'escola';
+  $('charList').innerHTML = CHARS.map(c => `<button class="cc ${c.id === pickTmp ? 'sel' : ''}" data-c="${c.id}" aria-label="${c.nome}"><img src="assets/ui/card-${c.id}.webp" alt="${c.nome}"></button>`).join('');
+  document.querySelectorAll('.cc').forEach(b => b.onclick = () => { pickTmp = b.dataset.c; document.querySelectorAll('.cc').forEach(x => x.classList.toggle('sel', x === b)); snd(520, .08, 'triangle', .06); });
+}
+$('hPers').onclick = () => { buildChars(); showScreen('chars'); };
+$('charOk').onclick = () => { pickChar(pickTmp); persist(); toast('Personagem: ' + CHARS.find(c => c.id === pickTmp).nome); toMenu(); };
 $('hSom').onclick = () => { setMuted(!isMuted()); toast(isMuted() ? 'Som desligado' : 'Som ligado'); if (!isMuted()) snd(660, .15, 'triangle', .07); };
 document.querySelectorAll('[data-go="menu"]').forEach(b => b.onclick = toMenu);
 $('pauseBtn').addEventListener('pointerdown', e => { e.stopPropagation(); togglePause(); });
@@ -527,6 +543,7 @@ function frame(ts) {
   }
   requestAnimationFrame(frame);
 }
+pickChar(save.char);
 (async function boot() {
   $('hJogar').disabled = true;
   try { A = await loadAssets(); } catch (e) { console.error(e); $('noGL').style.display = 'grid'; $('noGL').firstElementChild.textContent = 'Não foi possível carregar as imagens do jogo. Verifique a conexão e abra de novo.'; return; }

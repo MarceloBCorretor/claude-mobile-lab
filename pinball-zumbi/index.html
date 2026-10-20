@@ -9,16 +9,16 @@
 <meta property="og:site_name" content="Felipe vs Zumbi">
 <meta property="og:title" content="Felipe vs Zumbi | Pinball">
 <meta property="og:description" content="Pinball com defesa de plantas, fusão e chefões. Jogue com o Felipe!">
-<meta property="og:url" content="https://criativopublicitario.com.br/Games/pinball-zumbi-fase1f/">
-<meta property="og:image" content="https://criativopublicitario.com.br/Games/pinball-zumbi-fase1f/assets/ui/og-icone.jpg">
-<meta property="og:image:secure_url" content="https://criativopublicitario.com.br/Games/pinball-zumbi-fase1f/assets/ui/og-icone.jpg">
+<meta property="og:url" content="https://criativopublicitario.com.br/Games/pinball-zumbi-fase1g/">
+<meta property="og:image" content="https://criativopublicitario.com.br/Games/pinball-zumbi-fase1g/assets/ui/og-icone.jpg">
+<meta property="og:image:secure_url" content="https://criativopublicitario.com.br/Games/pinball-zumbi-fase1g/assets/ui/og-icone.jpg">
 <meta property="og:image:alt" content="Felipe e o zumbi: ícone do jogo">
 <meta property="og:image:type" content="image/jpeg">
 <meta property="og:image:width" content="600">
 <meta property="og:image:height" content="600">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:image" content="https://criativopublicitario.com.br/Games/pinball-zumbi-fase1f/assets/ui/og-icone.jpg">
-<link rel="image_src" href="https://criativopublicitario.com.br/Games/pinball-zumbi-fase1f/assets/ui/og-icone.jpg">
+<meta name="twitter:image" content="https://criativopublicitario.com.br/Games/pinball-zumbi-fase1g/assets/ui/og-icone.jpg">
+<link rel="image_src" href="https://criativopublicitario.com.br/Games/pinball-zumbi-fase1g/assets/ui/og-icone.jpg">
 <link rel="apple-touch-icon" href="assets/icones/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -118,6 +118,10 @@ canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-ac
 .lv .st{font-size:4.6cqw;color:#ffd24a;margin-top:1cqw}
 .lv.lock{opacity:.55;pointer-events:none}
 .sheet{width:100%;border-radius:3cqw;margin-bottom:2cqw}
+#charList{display:flex;gap:2cqw;margin-bottom:1cqw}
+.cc{flex:1;min-width:0;padding:0;border-radius:3cqw;overflow:hidden;background:#0b1a11;border:.8cqw solid #ffffff2a;opacity:.62;transform:scale(.96);transition:.15s}
+.cc img{display:block;width:100%}
+.cc.sel{opacity:1;transform:scale(1.03);border-color:#ffd24a;box-shadow:0 0 4cqw #ffd24a99}
 #noGL{display:none;position:absolute;inset:0;z-index:50;place-items:center;text-align:center;padding:8cqw;background:#06140b;font-weight:800;line-height:1.5}
 @media(prefers-reduced-motion:reduce){.fl{animation-duration:.01s}}
 </style>
@@ -130,7 +134,7 @@ canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-ac
   <div class="gz" id="gzL"><svg viewBox="0 0 40 40"><path d="M8 30 L30 12" stroke="#fff" stroke-width="6" stroke-linecap="round"/><circle cx="8" cy="30" r="5" fill="#fff"/></svg></div>
   <div class="gz" id="gzR"><svg viewBox="0 0 40 40"><path d="M32 30 L10 12" stroke="#fff" stroke-width="6" stroke-linecap="round"/><circle cx="32" cy="30" r="5" fill="#fff"/></svg></div>
   <div id="top">
-    <div id="left"><div id="avatar"><img id="face" alt="Felipe" src="assets/felipe/feliz.webp"></div>
+    <div id="left"><div id="avatar"><img id="face" alt="Felipe" src="assets/felipe/escola_feliz.webp"></div>
       <div id="stat"><div id="hearts"></div><div id="coinrow"><span class="coin"></span><b id="coins">0</b></div></div></div>
     <div id="wave"><div id="waveTxt">ONDA<b id="waveN">1</b></div><div id="bar"><i id="barf"></i></div><div id="zcount">ZUMBIS 0/0</div></div>
     <button id="pauseBtn" aria-label="Pausar"><span><i></i><i></i></span></button>
@@ -144,7 +148,7 @@ canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-ac
     <button class="hot" id="hCen" aria-label="Cenários"></button><button class="hot" id="hSom" aria-label="Som"></button><button id="bExitM" class="exitm" aria-label="Sair do jogo">Sair</button>
   </section>
   <section class="screen modalbg" id="levels"><div class="box"><h2>Cenários</h2><div id="lvList"></div><button class="btn g" data-go="menu">Voltar</button></div></section>
-  <section class="screen modalbg" id="chars"><div class="box"><h2>Personagens</h2><img class="sheet" src="assets/ui/personagens.webp" alt="Guia dos personagens"><button class="btn g" data-go="menu">Voltar</button></div></section>
+  <section class="screen modalbg" id="chars"><div class="box"><h2>Personagem</h2><p>Escolha o visual do Felipe. Muda só o retrato e as reações, o jogo é igual.</p><div id="charList"></div><button class="btn" id="charOk">CONFIRMAR</button><button class="btn g" data-go="menu">Voltar</button></div></section>
   <section class="screen modalbg" id="pause"><div class="box"><h2>Pausado</h2><button class="btn" id="bResume">CONTINUAR</button><button class="btn g" id="bRestart">Reiniciar fase</button><button class="btn g" id="bQuit">Menu principal</button><button class="btn g" id="bExitP">Sair do jogo</button></div></section>
   <section class="screen modalbg" id="exit"><div class="box"><h2>Sair do jogo?</h2><p>Seu recorde fica salvo.</p><button class="btn" id="exitStay">CONTINUAR JOGANDO</button><button class="btn g" id="exitGo">Sair do jogo</button><p id="exitMsg" style="font-size:3.4cqw;margin:3cqw 0 0"></p></div></section>
   <section class="screen modalbg" id="result"><div class="box"><h2 id="resTitle"></h2><div class="stars" id="resStars"></div><p id="resTxt"></p><button class="btn" id="resMain"></button><button class="btn g" id="resMenu">Menu</button></div></section>

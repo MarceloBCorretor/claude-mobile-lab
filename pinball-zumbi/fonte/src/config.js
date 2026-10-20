@@ -26,7 +26,9 @@ export const PLANT_DECAY = 2.2;                       // vida perdida por segund
 export const BITE = { normal: 16, cone: 16, runner: 20, boss: 50 };   // dano por segundo que cada zumbi causa comendo
 export const SEEK_RANGE = 100;                        // distância em que o zumbi vai atrás da planta
 // Preço: valor base na Fase 1 e +10% a cada nova fase (calculado sempre a partir do preço base).
-export const PRICE_GROWTH = 1.1;
+export const PRICE_GROWTH = 1.5;   // preço dos itens: +50% por fase, em cima do valor da fase anterior (fase 1 = base)
+export const ENEMY_GROWTH = 1.05;  // velocidade e faro dos zumbis: +5% por fase, composto (fase 1 = base)
+export const enemyMul = phase => Math.pow(ENEMY_GROWTH, Math.max(0, phase));
 export const priceFor = (type, phase) => Math.round(TYPES[type].price * Math.pow(PRICE_GROWTH, Math.max(0, phase)));
 // Regras de partida (por fase)
 export const BALLS_PER_PHASE = 10;      // bolinhas; cada uma que cai fora do lançador conta como perdida
