@@ -1,9 +1,13 @@
 {
   "name": "felipe-vs-zumbi-fonte",
   "private": true,
-  "version": "2.0.0",
-  "description": "Código-fonte do Pinball vs Zumbis 3D. Rode: npm install && npm run build",
-  "scripts": { "build": "node build.mjs" },
-  "dependencies": { "three": "0.170.0" },
-  "devDependencies": { "esbuild": "0.24.0" }
+  "version": "3.0.0",
+  "description": "C\u00f3digo-fonte do Felipe vs Zumbi (Fase 1). Rode: npm install && npm run build",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "esbuild": "0.24.0"
+  }
 }

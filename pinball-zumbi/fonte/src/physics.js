@@ -8,21 +8,21 @@ function arc(cx, cy, r, a0, a1, n) {
     seg(cx + r * Math.cos(p0), cy + r * Math.sin(p0), cx + r * Math.cos(p1), cy + r * Math.sin(p1), { e: .3 });
   }
 }
-export const WALL = { L: 18, R: 522, T: 48, CR: 50 };
+export const WALL = { L: 44, R: 496, T: 108, CR: 40 };
 {
   const { L, R, T, CR } = WALL;
   seg(L + CR, T, R - CR, T);
   arc(L + CR, T + CR, CR, Math.PI, 1.5 * Math.PI, 6);
   arc(R - CR, T + CR, CR, 1.5 * Math.PI, 2 * Math.PI, 6);
-  seg(L, T + CR, L, 470); seg(R, T + CR, R, 470);
-  seg(L, 470, 104, 584, { rail: 'guide' }); seg(R, 470, 436, 584, { rail: 'guide' });   // guias até os flippers
-  seg(235, 655, 235, 700, { rail: 'pocket' }); seg(305, 655, 305, 700, { rail: 'pocket' });   // bolso do lançador
-  seg(235, 700, 305, 700, { e: .05 });
+  seg(L, T + CR, L, 560); seg(R, T + CR, R, 560);
+  seg(L, 560, 100, 628); seg(R, 560, 440, 628);                        // guias até os flippers
+  seg(236, 730, 236, 775); seg(304, 730, 304, 775);                    // bolso do lançador
+  seg(236, 775, 304, 775, { e: .05 });
 }
 
 export const flippers = [
-  { s: 1, px: 125, py: 600, L: 118, a: .42, rest: .42, up: -.5, w: 0, held: false },
-  { s: -1, px: 415, py: 600, L: 118, a: .42, rest: .42, up: -.5, w: 0, held: false }
+  { s: 1, px: 100, py: 641, L: 132, a: .49, rest: .49, up: -.49, w: 0, held: false },
+  { s: -1, px: 440, py: 641, L: 132, a: .49, rest: .49, up: -.49, w: 0, held: false }
 ];
 export const FLIP_R = 11;
 export function flipTip(f) { return [f.px + f.s * f.L * Math.cos(f.a), f.py + f.L * Math.sin(f.a)]; }
@@ -76,7 +76,7 @@ export function stepPhysics(dt, S) {
       const t = flipTip(f);
       if (collideSeg(b, { x1: f.px, y1: f.py, x2: t[0], y2: t[1], r: FLIP_R, e: .25 }, f) && Math.abs(f.w) > 3) S.hooks.onFlipper(f);
     }
-    for (const o of S.obstacles) if (collideCirc(b, o, .9, o.kick)) S.hooks.onObstacle(o);
+    for (const o of S.obstacles) if (collideCirc(b, o, o.e || .9, o.kick)) S.hooks.onObstacle(o);
     for (const sl of S.slots) if (sl.plant && collideCirc(b, { x: sl.x, y: sl.y, r: SRAD }, .85, 300)) S.hooks.onPlant(sl);
     for (const z of S.zombies) {
       if (z.dead) continue;

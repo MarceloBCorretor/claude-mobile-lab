@@ -1,20 +1,22 @@
-# Felipe vs Zumbi: Pinball 3D (versão 2)
+# Felipe vs Zumbi: Pinball (Fase 1, versão 2.5D com arte de referência)
 
-Pinball 3D no navegador com defesa de plantas, fusão, 3 cenários e chefões.
-Three.js (3D, sombras, bloom) com física de pinball própria (bola, flippers, bumpers).
+Fase 1 (Jardim da Fonte) montada com o **fundo fixo** e os **itens exatos** das imagens de referência:
+cada item (zumbi, plantas, lixeira, pneu, barreira, flippers, lançador) é um sprite recortado da folha de itens,
+sobre o fundo fixo, com a física de pinball própria (bola, flippers, bumpers).
 
 ## Como publicar
-Suba **só estes arquivos** no servidor (ou Vercel), mantendo a estrutura:
+Suba **só estes itens** no servidor, mantendo a estrutura:
 `index.html`, `game.js`, `service-worker.js`, `manifest.webmanifest` e a pasta `assets/`.
+(A pasta `fonte/` é só o código-fonte, não precisa ir para o servidor.)
 
 ## Como alterar o jogo
-O código-fonte fica em `fonte/src/`:
-- `config.js`: cenários, obstáculos, posição dos slots, preços, dano
-- `physics.js`: mesa, paredes, flippers e colisões da bola
-- `models.js`: modelos 3D (zumbis voxel, plantas, obstáculos, chão)
-- `scene.js`: câmera, luzes, bloom, partículas, sombras
-- `main.js`: regras do jogo, ondas, HUD, toques e menus
-- `index.template.html`: telas e estilos (HUD)
+Código em `fonte/src/`:
+- `config.js`: posições dos obstáculos e dos 4 locais de poderes, preços, dano, tamanho da mesa
+- `physics.js`: paredes, guias, flippers e colisões
+- `render.js`: desenho (fundo, sprites, brilhos, partículas)
+- `assets.js`: carrega os sprites e desenha o Atirador (ainda sem sprite na folha de referência)
+- `main.js`: regras, ondas, preços, toques e menus
+- `index.template.html`: telas e estilos
 
 Depois de editar:
 ```
@@ -22,8 +24,7 @@ cd fonte
 npm install        (só na primeira vez)
 npm run build      (gera ../game.js e ../index.html)
 ```
-A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v3` para `v4`...).
+Os sprites foram gerados por `fonte/tools/build_assets.py` a partir das imagens de referência
+(18, 19 e 20). Para refazer: `python3 fonte/tools/build_assets.py <pasta_das_referencias> assets/fase1`.
 
-## Imagens do Felipe
-`assets/felipe/` tem os 6 retratos de reação (feliz, triste, assustado, concentrado, vitória, upiii).
-Para trocar, mantenha os mesmos nomes de arquivo (WebP quadrado, 256x256).
+A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v4` para `v5`...).
