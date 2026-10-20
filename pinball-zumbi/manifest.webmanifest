@@ -1,7 +1,7 @@
 {
-  "name": "Felipe vs Zumbi: Pinball 3D",
+  "name": "Felipe vs Zumbi: Pinball",
   "short_name": "Felipe vs Zumbi",
-  "description": "Pinball 3D com defesa de plantas, fusão e chefões.",
+  "description": "Pinball com defesa de plantas, fusão e chefões.",
   "lang": "pt-BR",
   "start_url": "./index.html",
   "scope": "./",
@@ -14,13 +14,19 @@
       "src": "assets/icones/icone-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "assets/icones/icone-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icones/icone-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

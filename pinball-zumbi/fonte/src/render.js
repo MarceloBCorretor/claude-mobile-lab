@@ -1,8 +1,8 @@
-import { W, H, BR, DANGER, LAUNCHER, SR, LVLCOL, TYPES, SCEN, POCKET } from './config.js';
+import { W, H, BR, DANGER, LAUNCHER, SR, LVLCOL, TYPES, SCEN, POCKET, TREE } from './config.js';
 import { flippers } from './physics.js';
 
 // Tamanhos de desenho em unidades lógicas (540 x 960)
-const ZW = 64, FLIP_LEN = 104, POCKET_Y = 880;
+const ZW = 64, FLIP_LEN = 110, POCKET_Y = 880;     // FLIP_LEN: distância entre os dois botões verdes do flipper (a ponta física passa um pouco dela)
 
 export function createRenderer(canvas, A) {
   const ctx = canvas.getContext('2d'), I = A.img, bg = I.fundo;
@@ -65,14 +65,14 @@ export function createRenderer(canvas, A) {
   }
 
   function drawBall(b, st) {
-    const r = BR * s, x = X(b.x), y = Y(b.y), gold = st.gold;
+    const r = (b.r || BR) * s, x = X(b.x), y = Y(b.y), gold = st.gold;
     if (st.trail && b.active) for (let i = 0; i < st.trail.length; i += 2) {
       const a = (i / st.trail.length), tx = st.trail[i], ty = st.trail[i + 1];
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gold ? `rgba(255,190,60,${.16 * a})` : `rgba(200,225,255,${.14 * a})`;
       ctx.beginPath(); ctx.arc(X(tx), Y(ty), r * (.35 + .6 * a), 0, 7); ctx.fill(); ctx.restore();
     }
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.ellipse(x + r * .25, y + r * .95, r * .95, r * .42, 0, 0, 7); ctx.fill();
-    if (gold) { glowSpot(b.x, b.y, 58, '255,190,40', .6 + .15 * Math.sin(st.t * 10)); glowRing(b.x, b.y + 4, 30, 20, '#ffd24a', .8, 2); }
+    if (gold) { glowSpot(b.x, b.y, 66, '255,190,40', .6 + .15 * Math.sin(st.t * 10)); glowRing(b.x, b.y + 4, 36, 24, '#ffd24a', .8, 2); }
     const g = ctx.createRadialGradient(x - r * .35, y - r * .4, r * .08, x, y, r);
     if (gold) { g.addColorStop(0, '#fffbe0'); g.addColorStop(.35, '#ffd84a'); g.addColorStop(.8, '#b8780c'); g.addColorStop(1, '#5a3a05'); }
     else { g.addColorStop(0, '#ffffff'); g.addColorStop(.3, '#dfe8ee'); g.addColorStop(.7, '#7d8a94'); g.addColorStop(1, '#262f36'); }
@@ -92,7 +92,7 @@ export function createRenderer(canvas, A) {
     const [pose, flip] = poseOf(z);
     let img = I['zumbi_' + pose];
     if (z.type === 'runner') img = A.runner[pose]; else if (z.type === 'boss') img = A.boss[pose];
-    const bob = z.eating ? 0 : Math.abs(Math.sin(z.ph)) * 3, fade = Math.max(0, Math.min(1, (z.y - 112) / 34 + .15));
+    const bob = z.eating ? 0 : Math.abs(Math.sin(z.ph)) * 3, fade = Math.max(0, Math.min(1, (z.y - 120) / 22 + .1));
     shadow(z.x, z.y + 2, 21 * mul, 7 * mul, .28 * fade);
     ctx.save(); ctx.globalAlpha = fade;
     const sq = z.dying ? [1 + z.dying * .2, 1 - z.dying * .3] : null;
@@ -169,6 +169,24 @@ export function createRenderer(canvas, A) {
     ctx.restore();
   }
 
+  function drawTree(o, t) { // árvore balançando: recorte do fundo girando em torno do pé do tronco
+    const T = TREE.spr, k = o.shakeT, amp = o.amp || 1, d = Math.exp(-k * 3.2) * Math.sin(k * 30);
+    ctx.save(); ctx.translate(X(T.px), Y(T.py)); ctx.rotate(d * .05 * amp); ctx.scale(1 + .015 * d * amp, 1 - .02 * Math.abs(d) * amp);
+    ctx.drawImage(I.arvore, (T.x0 - T.px) * s, (T.y0 - T.py) * s, T.w * s, T.h * s); ctx.restore();
+    if (amp > 1.5) for (const f of TREE.fruits) glowSpot(f[0] + d * 6, f[1], 20, '255,210,80', Math.max(0, .55 - k * .35)); // frutos brilham na décima batida
+  }
+  function drawSeed(b) { // bolinha extra (semente dourada com folha)
+    const r = b.r * s; shadow(b.x + 3, b.y + b.r - 2, b.r * .9, b.r * .38, .28);
+    glowSpot(b.x, b.y, 34, '255,200,60', .4);
+    ctx.save(); ctx.translate(X(b.x), Y(b.y)); ctx.rotate(b.rot || 0); ctx.drawImage(I.semente, -r, -r, 2 * r, 2 * r); ctx.restore();
+  }
+  function drawPendingSeeds(pend) { // sementes caindo dos galhos
+    for (const p of pend) {
+      if (p.t < 0) { glowSpot(p.fx, p.fy, 16 + (p.t + .18) * 40, '255,210,80', .6); continue; }
+      const u = Math.min(1, p.t / p.dur), x = p.fx + (p.x - p.fx) * u, y = p.fy + (p.y - p.fy) * u * u, r = BR * (.55 + .45 * u) * s;
+      glowSpot(x, y, 30, '255,200,60', .45); ctx.save(); ctx.translate(X(x), Y(y)); ctx.rotate(u * 5); ctx.drawImage(I.semente, -r, -r, 2 * r, 2 * r); ctx.restore();
+    }
+  }
   function drawParticles(P) {
     for (const p of P) {
       const k = Math.max(0, p.life / p.max);
@@ -195,13 +213,14 @@ export function createRenderer(canvas, A) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (st.shake > 0) ctx.translate((Math.random() - .5) * st.shake * 8, (Math.random() - .5) * st.shake * 8);
     drawBackground();
+    for (const o of st.obstacles) if (o.k === 'tree' && o.shakeT !== undefined && o.shakeT < 1.6) drawTree(o, t);
     // lâmpadas acesas
     for (let i = 0; i < sc.lamps.length; i++) glowSpot(sc.lamps[i][0], sc.lamps[i][1], 46, '255,190,80', .34 + .1 * Math.sin(t * 2.2 + i * 1.7));
     // barreira de aviso
     const danger = st.danger, pulse = .5 + .5 * Math.sin(t * 6);
-    shadow(270, 796, 226, 11, .25);
-    sprite(I.barreira, 270, 802, 482, false, { h: 74 });
-    if (danger) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,40,30,${.12 + .22 * pulse})`; ctx.fillRect(X(30), Y(740), 480 * s, 56 * s); ctx.restore(); }
+    shadow(270, 840, 226, 11, .25);
+    sprite(I.barreira, 270, 846, 482, false, { h: 72 });
+    if (danger) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,40,30,${.12 + .22 * pulse})`; ctx.fillRect(X(30), Y(784), 480 * s, 56 * s); ctx.restore(); }
     // lançador
     const pull = st.charge * 7;
     shadow(270, LAUNCHER.y + 45, 40, 9, .3);
@@ -230,7 +249,8 @@ export function createRenderer(canvas, A) {
     for (const o of st.obstacles) if (o.k !== 'fountain') list.push([o.y + 20, () => drawObstacle(o, t)]);
     for (const sl of st.slots) if (sl.plant && !(st.dragIdx === sl.idx)) list.push([sl.y + 18, () => drawPlant(sl, t, st)]);
     for (const z of st.zombies) if (!z.dead) list.push([z.y + 6, () => drawZombie(z, t)]);
-    list.push([st.ball.y + BR, () => drawBall({ x: st.ball.x, y: st.ball.y + (st.ball.active ? 0 : pull), active: st.ball.active, vx: st.ball.vx, vy: st.ball.vy }, st)]);
+    list.push([st.ball.y + (st.ball.r || BR), () => drawBall({ x: st.ball.x, y: st.ball.y + (st.ball.active ? 0 : pull), r: st.ball.r, active: st.ball.active, vx: st.ball.vx, vy: st.ball.vy }, st)]);
+    for (let i = 1; i < st.ballList.length; i++) { const sb = st.ballList[i]; list.push([sb.y + sb.r, () => drawSeed(sb)]); }
     list.sort((a, b) => a[0] - b[0]); for (const it of list) it[1]();
     // tiros
     for (const sh of st.shots) {
@@ -241,6 +261,7 @@ export function createRenderer(canvas, A) {
       ctx.fillStyle = `rgba(${col},.95)`; ctx.beginPath(); ctx.arc(X(sh.x), Y(sh.y), 6 * s, 0, 7); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.beginPath(); ctx.arc(X(sh.x), Y(sh.y), 2.6 * s, 0, 7); ctx.fill(); ctx.restore();
     }
+    drawPendingSeeds(st.pend);
     drawParticles(st.parts);
     if (st.goldFlash > 0) { const g = ctx.createRadialGradient(cw / 2, ch / 2, ch * .15, cw / 2, ch / 2, ch * .75); g.addColorStop(0, 'rgba(255,200,60,0)'); g.addColorStop(1, `rgba(255,190,40,${.42 * st.goldFlash})`); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch); ctx.restore(); }
     // arrastando uma planta

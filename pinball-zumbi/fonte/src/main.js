@@ -1,7 +1,7 @@
 import { createRenderer } from './render.js';
 import { loadAssets } from './assets.js';
 import { stepPhysics, flippers, WALL } from './physics.js';
-import { SCEN, PLAN, TYPES, ORDER, DMG, MAXLVL, DANGER, SR, POCKET, LAUNCHER, VIEW, WAVES_PER_SCEN, SPAWN_Y, PLANT_HP, PLANT_DECAY, BITE, SEEK_RANGE, BALLS_PER_PHASE, HEART_EVERY, MAX_LIVES, LAST_WAVE_LEAKS_PER_LIFE, priceFor } from './config.js';
+import { SCEN, PLAN, TYPES, ORDER, DMG, MAXLVL, DANGER, SR, POCKET, LAUNCHER, VIEW, WAVES_PER_SCEN, SPAWN, TREE, BR, BR_GOLD, BR_SEED, PLANT_HP, PLANT_DECAY, BITE, SEEK_RANGE, BALLS_PER_PHASE, HEART_EVERY, MAX_LIVES, LAST_WAVE_LEAKS_PER_LIFE, priceFor } from './config.js';
 import { snd, vib, isMuted, setMuted, unlockAudio } from './audio.js';
 
 const $ = id => document.getElementById(id);
@@ -16,13 +16,15 @@ const persist = () => { try { localStorage.setItem('pz25_save', JSON.stringify(s
 let R = null, A = null;            // renderizador e sprites (depois do carregamento)
 let state = 'menu';                // menu | play | paused | over
 let scenIdx = 0, G = {};
-const ball = { x: POCKET.x, y: POCKET.rest, vx: 0, vy: 0, active: false };
+const ball = { x: POCKET.x, y: POCKET.rest, vx: 0, vy: 0, active: false, r: BR, kind: 'main' };
+const balls = [ball];                    // bolinha principal + sementes extras (cada uma calculada de forma independente)
+const pendSeeds = [];                    // sementes ainda caindo da árvore
 const slots = [], zombies = [], shots = [], obstacles = [], parts = [], trail = [];
 const input = { kL: false, kR: false, ptrs: new Map(), charging: false, charge: 0, aim: 0, drag: null, armed: null };
 let hotSlot = -1, felipe = { mood: '', until: 0, prio: 0 }, lastFace = '', shake = 0, noteUntil = 0, tagUntil = 0, ghost = null, dragIdx = -1;
 
-// retratos da folha de referência (feliz, neutro, empolgado, triste, vitória); "assustado" e "concentrado" usam o neutro
-const FACE_FILES = { feliz: 'feliz', concentrado: 'neutro', assustado: 'neutro', triste: 'triste', vitoria: 'vitoria', upiii: 'empolgado' };
+// retratos do guia de reações do Felipe (feliz, triste, assustado, concentrado, vitória, upiii)
+const FACE_FILES = { feliz: 'feliz', concentrado: 'concentrado', assustado: 'assustado', triste: 'triste', vitoria: 'vitoria', upiii: 'upiii' };
 const FACES = {}; for (const m in FACE_FILES) { const i = new Image(); i.src = `assets/felipe/${FACE_FILES[m]}.webp`; FACES[m] = i.src; }
 function setFelipe(mood, dur, prio) { const n = performance.now(); if (n < felipe.until && prio < felipe.prio) return; felipe = { mood, until: n + dur * 1000, prio }; }
 function faceNow() {
@@ -121,7 +123,7 @@ function nearestSlot(lx, ly, maxD) { let best = null, bd = maxD; for (const s of
 function firePlant(sl) {
   const p = sl.plant, lvl = p.lvl, m = G.gold > 0 ? 2 : 1;
   if (p.type === 'sun') { const g = (2 + 2 * lvl) * m; G.coins += g; floatText(sl.x, sl.y - 24, '+' + g, '#ffe066'); sparks(sl.x, sl.y - 20, 6, 'rgb(255,224,102)', 120); snd(880, .1, 'sine', .05, 1.4); return true; }
-  let tg = null, bd = 1e9; for (const z of zombies) { if (z.dead || z.y < 118) continue; const d = Math.hypot(z.x - sl.x, z.y - sl.y); if (d < bd) { bd = d; tg = z; } }
+  let tg = null, bd = 1e9; for (const z of zombies) { if (z.dead || z.y < 150) continue; const d = Math.hypot(z.x - sl.x, z.y - sl.y); if (d < bd) { bd = d; tg = z; } }
   if (!tg) return false;
   if (p.type === 'bomb') { explode(tg.x, tg.y, 90 + 10 * lvl, DMG[lvl] * 2 * m); snd(110, .25, 'sawtooth', .07, .5); return true; }
   const a0 = Math.atan2(tg.y - 14 - (sl.y - 20), tg.x - sl.x), angs = G.gold > 0 ? [-.28, 0, .28] : [0];
@@ -140,7 +142,7 @@ function spawnZombie(boss) {
   let type = 'normal'; if (boss) type = 'boss'; else if (n >= 3 && r < .22) type = 'runner'; else if (n >= 2 && r < .5) type = 'cone';
   const base = 3 + .9 * n + 1.3 * si, sp = Math.min(46, 19 + 2 * n + 3 * si);
   const spec = { normal: [1, 1, 22, 8, 60], cone: [2.2, 1, 22, 12, 90], runner: [.6, 1.9, 19, 10, 80], boss: [10, .55, 34, 60, 600] }[type];
-  const z = { type, x: WALL.L + 70 + Math.random() * (WALL.R - WALL.L - 140), y: SPAWN_Y, ph: Math.random() * 6, flash: 0, slow: 0, stun: 0, dead: false, hitCd: 0, wander: Math.random() * 6 };
+  const z = { type, x: SPAWN.x + (Math.random() - .5) * 24, y: SPAWN.y, dest: 110 + Math.random() * 320, ph: Math.random() * 6, flash: 0, slow: 0, stun: 0, dead: false, hitCd: 0, wander: Math.random() * 6 };
   z.hp = z.maxhp = base * spec[0]; z.sp = sp * spec[1]; z.r = spec[2]; z.coin = spec[3] + n + si * 2; z.pts = spec[4];
   zombies.push(z);
 }
@@ -175,7 +177,7 @@ function leak(z) {
 }
 
 /* ===================== bola ===================== */
-function resetBall() { Object.assign(ball, { x: POCKET.x, y: POCKET.rest, vx: 0, vy: 0, active: false }); input.charge = 0; trail.length = 0; G.pocketT = 0; G.stuckT = 0; }
+function resetBall() { Object.assign(ball, { x: POCKET.x, y: POCKET.rest, vx: 0, vy: 0, active: false, r: BR, ins: {} }); input.charge = 0; trail.length = 0; G.pocketT = 0; G.stuckT = 0; }
 function launch() {
   if (state !== 'play' || ball.active) { input.charge = 0; return; }
   const v = 1000 + 560 * input.charge; ball.vy = -v; ball.vx = input.aim * 260 + (Math.random() - .5) * 20; ball.active = true; input.charge = 0; input.aim = 0; G.pocketT = 0;
@@ -198,21 +200,49 @@ function bump(pts) {
   if (G.combo === 3) note('COMBO ×3', 1200); else if (G.combo === 4) note('COMBO ×4', 1200);
   if (G.combo >= 5 && G.gold <= 0) { G.gold = 10; G.combo = 0; G.goldFlash = 1; sparks(ball.x, ball.y, 24, 'rgb(255,210,80)', 300); ripple(ball.x, ball.y, 110, 'rgb(255,210,80)'); note('SEMENTE DOURADA! dano dobrado e tiro triplo', 2200); snd(300, .4, 'sawtooth', .07, 3); vib(80); tag('UPIII!'); setFelipe('upiii', 1.3, 2); }
 }
+/* ===================== árvore de sementes (Fase 1) ===================== */
+function treeHit(o, b) {
+  if (b !== ball || !SCEN[scenIdx].tree) return;                 // só a bolinha principal conta
+  if (G.t - (G.treeLast ?? -9) < .22) return; G.treeLast = G.t;   // uma batida por contato físico
+  if (G.treeDone) { o.shakeT = 0; o.amp = 1; snd(170, .08, 'triangle', .06); return; }
+  G.treeHits++; o.shakeT = 0; o.amp = 1; snd(170 + G.treeHits * 8, .09, 'triangle', .07); snd(95, .12, 'sine', .05);
+  for (let i = 0; i < 3; i++) parts.push({ kind: 'cube', x: o.x + rnd(-40, 40), y: o.y - 10, z: rnd(60, 110), vx: rnd(-30, 30), vy: rnd(-10, 10), vz: rnd(-30, 20), rot: Math.random() * 6, vr: rnd(-6, 6), size: rnd(3, 5), life: rnd(.9, 1.4), max: 1.4, col: ['#4fae3a', '#7bd04a', '#2f8a2b'][i % 3] });
+  if (G.treeHits < TREE.hits) { floatText(o.x + 6, o.y - 56, G.treeHits + '/' + TREE.hits, '#d9ffb0'); return; }
+  // décima batida: caem duas sementes douradas e viram bolinhas extras
+  G.treeDone = true; o.amp = 1.8;
+  TREE.landing.forEach((l, i) => pendSeeds.push({ fx: TREE.fruits[i][0], fy: TREE.fruits[i][1], x: l[0], y: l[1], vx: l[2], vy: l[3], t: -i * .18, dur: .55 }));
+  note('+2 SEMENTES EXTRAS!', 2600); tag('UPIII!'); setFelipe('upiii', 1.6, 2); shake = Math.max(shake, .35); vib(60);
+  sparks(o.x, o.y - 50, 18, 'rgb(255,214,90)', 220);
+  snd(660, .12, 'triangle', .07); setTimeout(() => snd(880, .12, 'triangle', .07), 100); setTimeout(() => snd(1175, .22, 'triangle', .07), 200);
+}
+function updateSeeds(dt) {
+  for (let i = pendSeeds.length - 1; i >= 0; i--) {
+    const p = pendSeeds[i]; p.t += dt; if (p.t < p.dur) continue;
+    pendSeeds.splice(i, 1);
+    balls.push({ x: p.x, y: p.y, vx: p.vx, vy: p.vy, active: true, r: BR_SEED, kind: 'seed', ins: {}, rot: 0, stuckT: 0, sx: p.x, sy: p.y });
+    sparks(p.x, p.y, 8, 'rgb(255,214,90)', 140);
+  }
+}
+function loseSeed(b, why) {
+  const k = balls.indexOf(b); if (k > 0) balls.splice(k, 1);
+  note(why || 'Semente perdida', 1400); snd(200, .18, 'sine', .05, .5);
+}
+
 const hooks = {
-  onObstacle(o) {
-    o.hit = 1; bump(o.k === 'fountain' ? 4 : 8);
-    if (o.k === 'fountain') { drops(ball.x, ball.y, 12, 150); ripple(o.x, o.y + 14, 80, 'rgb(150,225,255)'); snd(380, .12, 'sine', .05, 1.6); shake = Math.max(shake, .06); }
-    else { sparks(ball.x, ball.y, 8, o.k === 'trash' ? 'rgb(90,170,255)' : 'rgb(255,220,160)', 190); snd(o.k === 'trash' ? 700 : 240, .07, o.k === 'trash' ? 'square' : 'sine', .05); shake = Math.max(shake, .08); }
+  onObstacle(o, b) {
+    o.hit = 1; if (o.k === 'tree') treeHit(o, b); bump(o.k === 'fountain' ? 4 : 8);
+    if (o.k === 'fountain') { drops(b.x, b.y, 12, 150); ripple(o.x, o.y + 14, 80, 'rgb(150,225,255)'); snd(380, .12, 'sine', .05, 1.6); shake = Math.max(shake, .06); }
+    else if (o.k !== 'tree') { sparks(b.x, b.y, 8, o.k === 'trash' ? 'rgb(90,170,255)' : 'rgb(255,220,160)', 190); snd(o.k === 'trash' ? 700 : 240, .07, o.k === 'trash' ? 'square' : 'sine', .05); shake = Math.max(shake, .08); }
   },
-  onPlant(sl) { const p = sl.plant; p.hit = 1; bump(4); if (p.cd <= 0 && firePlant(sl)) p.cd = p.type === 'sun' ? .35 : .22; snd(260 + sl.idx * 50, .06, 'sine', .04); },
-  onZombie(z, speed) {
+  onPlant(sl, b) { const p = sl.plant; p.hit = 1; bump(4); if (p.cd <= 0 && firePlant(sl)) p.cd = p.type === 'sun' ? .35 : .22; snd(260 + sl.idx * 50, .06, 'sine', .04); },
+  onZombie(z, speed, b) {
     if (z.hitCd > 0) return;
     z.hitCd = .25; z.stun = .3; z.y -= 12; bump(6);
-    hurt(z, (1 + speed / 520) * (G.gold > 0 ? 2 : 1), false); sparks(ball.x, ball.y, 6, 'rgb(255,255,255)', 160); shake = Math.max(shake, .12); snd(240, .06, 'square', .05);
+    hurt(z, (1 + speed / 520) * (G.gold > 0 ? 2 : 1), false); sparks(b.x, b.y, 6, 'rgb(255,255,255)', 160); shake = Math.max(shake, .12); snd(240, .06, 'square', .05);
   },
   onFlipper() { const n = performance.now(); if (n - (G.flipVib || 0) > 140) { G.flipVib = n; vib(12); } }
 };
-const PS = { ball, obstacles, slots, zombies, slotRadius: SR, hooks };
+const PS = { balls, obstacles, slots, zombies, slotRadius: SR, hooks };
 
 /* ===================== fluxo da fase ===================== */
 function startGame(si) {
@@ -220,7 +250,8 @@ function startGame(si) {
   scenIdx = si; zombies.length = 0; shots.length = 0; parts.length = 0; slots.length = 0; obstacles.length = 0;
   SCEN[si].slots.forEach(([x, y], i) => slots.push({ x, y, plant: null, idx: i }));
   SCEN[si].obstacles.forEach(o => obstacles.push(Object.assign({ hit: 0 }, o)));
-  G = { coins: 150 + si * 40, score: 0, nextHeart: HEART_EVERY, balls: BALLS_PER_PHASE, leakHalf: 0, lives: 3, wave: 0, toSpawn: 0, spawnT: 0, interval: 2, between: 2.2, clear: false, waveTotal: 0, killed: 0, leaked: 0, combo: 0, comboT: 0, gold: 0, t: 0, pocketT: 0, stuckT: 0 };
+  balls.length = 1; pendSeeds.length = 0;
+  G = { treeHits: 0, treeDone: false, coins: 150 + si * 40, score: 0, nextHeart: HEART_EVERY, balls: BALLS_PER_PHASE, leakHalf: 0, lives: 3, wave: 0, toSpawn: 0, spawnT: 0, interval: 2, between: 2.2, clear: false, waveTotal: 0, killed: 0, leaked: 0, combo: 0, comboT: 0, gold: 0, t: 0, pocketT: 0, stuckT: 0 };
   hudCache = {}; input.armed = null; hotSlot = -1; dragIdx = -1; ghost = null; resetBall(); felipe = { mood: '', until: 0, prio: 0 };
   showScreen(null); state = 'play'; note('FASE ' + (si + 1) + ' · ' + SCEN[si].name, 2200); setFelipe('feliz', 2, 1);
   buildCards(); hud(); layout();
@@ -258,12 +289,23 @@ function update(dt) {
   // bolso do lançador / bola parada / segurança
   if (ball.active) {
     // caiu no lançador: pode ser usada de novo (não perde); caiu fora dele: perde 1 das 10 bolinhas
-    if (ball.y > 895 && ball.x > 236 && ball.x < 304) { G.pocketT += dt; if (G.pocketT > .45) { resetBall(); G.combo = 0; note('Bolinha de volta ao lançador', 1200); snd(300, .2, 'sine', .05, .5); } } else G.pocketT = 0;
-    if (ball.y > 972) { lostBall(); }
+    if (ball.y > 880 && Math.abs(ball.x - POCKET.x) < 34) { G.pocketT += dt; if (G.pocketT > .35) { resetBall(); G.combo = 0; note('Bolinha de volta ao lançador', 1200); snd(300, .2, 'sine', .05, .5); } } else G.pocketT = 0;
+    if (ball.active && ball.y > 972) { lostBall(); }
     G.stuckT += dt; if (G.stuckT > 1.8) { const moved = Math.hypot(ball.x - (G.sx || 0), ball.y - (G.sy || 0)); G.sx = ball.x; G.sy = ball.y; G.stuckT = 0; if (moved < 40 && ball.y < 860) { ball.vy = -750; ball.vx = (Math.random() - .5) * 500; } }
-    if (!(ball.x > -20 && ball.x < 560 && ball.y > -40)) { lostBall(); }
+    if (ball.active && !(ball.x > -20 && ball.x < 560 && ball.y > -40)) { lostBall(); }
     if (ball.active) { trail.push(ball.x, ball.y); if (trail.length > 24) trail.splice(0, 2); }
   } else { ball.x = POCKET.x; ball.y = POCKET.rest; if (trail.length) trail.length = 0; }
+  // bolinha principal: fica maior quando está dourada (especial)
+  ball.r += ((G.gold > 0 ? BR_GOLD : BR) - ball.r) * Math.min(1, dt * 8);
+  // sementes extras: independentes; se caem fora da mesa, somem de vez (não voltam e não encerram a partida)
+  updateSeeds(dt);
+  for (let i = balls.length - 1; i > 0; i--) {
+    const b = balls[i]; b.rot = (b.rot || 0) + b.vx * dt * .04;
+    if (b.y > 905 || b.x < -20 || b.x > 560 || b.y < -40) { loseSeed(b); continue; }
+    b.stuckT = (b.stuckT || 0) + dt;
+    if (b.stuckT > 1.8) { const moved = Math.hypot(b.x - b.sx, b.y - b.sy); b.sx = b.x; b.sy = b.y; b.stuckT = 0; if (moved < 40) { b.vy = -650; b.vx = (Math.random() - .5) * 420; } }
+  }
+  for (const o of obstacles) if (o.shakeT !== undefined) o.shakeT += dt;
   if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
   if (G.gold > 0) G.gold -= dt;
   for (const o of obstacles) o.hit = Math.max(0, o.hit - dt * 5);
@@ -301,7 +343,7 @@ function update(dt) {
           if (z.biteT <= 0) { z.biteT = .5; snd(170, .05, 'square', .04); cubes(z.target.x, z.target.y - 14, 2, ['#6bbf46', '#2f8a2b'], 70, 4); }
           if (tp.hp <= 0) plantDies(z.target);
         }
-      } else { z.y += z.sp * k * dt; z.x += Math.sin(z.ph * .25 + z.wander) * 14 * dt; }
+      } else { z.y += z.sp * k * dt; z.x += Math.sin(z.ph * .25 + z.wander) * 14 * dt; if (z.y < 360) z.x += Math.sign(z.dest - z.x) * Math.min(Math.abs(z.dest - z.x), 40 * dt); }
     }
     z.slow = Math.max(0, z.slow - dt);
     for (const [bx, by, br] of blockers) { const dx = z.x - bx, dy = z.y - by, d = Math.hypot(dx, dy) || 1, m = br + z.r + 8; if (d < m) { z.x += dx / d * 120 * dt + (dx === 0 ? 40 * dt : 0); z.y += Math.max(0, dy / d) * 40 * dt; } }
@@ -317,7 +359,7 @@ function update(dt) {
   }
 }
 
-const view = { balls: 10, t: 0, ball, trail, gold: false, charge: 0, danger: false, slots, obstacles, zombies, shots, parts, armedOk: null, hot: -1, shake: 0, ballReady: true, dragIdx: -1, dragGhost: null };
+const view = { balls: 10, t: 0, ball, ballList: balls, pend: pendSeeds, trail, gold: false, charge: 0, danger: false, slots, obstacles, zombies, shots, parts, armedOk: null, hot: -1, shake: 0, ballReady: true, dragIdx: -1, dragGhost: null };
 function draw() {
   if (!R) return;
   view.aim = input.aim; view.goldFlash = G.goldFlash || 0; if (G.goldFlash > 0) G.goldFlash = Math.max(0, G.goldFlash - .03); view.t = performance.now() / 1000; view.gold = G.gold > 0; view.charge = input.charge; view.danger = zombies.some(z => !z.dead && z.y > DANGER - 130);
@@ -460,4 +502,4 @@ toMenu();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('service-worker.js').catch(() => {});
 
 // gancho de teste (usado nos testes automatizados)
-window.PZ = { addScore, leak, lostBall, end: endGame, step: dt => update(dt), start: startGame, launch, buy, slots, zombies, ball, flippers, input, view, get R() { return R; }, get G() { return G; }, get state() { return state; }, frame: () => { draw(); hud(); } };
+window.PZ = { obstacles, balls, addScore, leak, lostBall, end: endGame, step: dt => update(dt), start: startGame, launch, buy, slots, zombies, ball, flippers, input, view, get R() { return R; }, get G() { return G; }, get state() { return state; }, frame: () => { draw(); hud(); } };

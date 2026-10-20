@@ -25,11 +25,11 @@ npm install        (só na primeira vez)
 npm run build      (gera ../game.js e ../index.html)
 ```
 Ferramentas em `fonte/tools/`:
-- `build_assets.py <referencias> <pasta_do_jogo>`: recorta sprites e retratos do Felipe da folha (24.webp) e usa o fundo (25.webp)
-- `build_brand.py <pasta_do_jogo>`: ícones do app e imagem de compartilhamento (WhatsApp)
+- `build_assets.py <referencias> <pasta_do_jogo>`: recorta sprites da folha (24.webp), retratos do Felipe e a semente dourada do guia (28.webp), usa o fundo (31.webp) e recorta a árvore do fundo
+- `build_brand.py <referencias> <pasta_do_jogo>`: ícones quadrados 1:1 (29.webp), favicon e imagem de compartilhamento (WhatsApp)
 - `build_sw.py <pasta_do_jogo> <versao>`: lista de arquivos do modo offline (service worker)
 
 Endereço do jogo no servidor: `fonte/site.config.json` (`baseUrl`). A imagem de compartilhamento do WhatsApp precisa do
 endereço completo, então se subir em outra pasta, altere o `baseUrl` e rode `npm run build` (ou edite as linhas `og:` do `index.html`).
 
-A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v6` para `v7`...).
+A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v7` para `v8`...).

@@ -1,6 +1,6 @@
 """Gera os arquivos da Fase 1 a partir das imagens de referência.
 Uso: python3 build_assets.py <pasta_das_referencias> <pasta_do_jogo>
-Espera na pasta de referências: 24.webp (folha de personagens e itens) e 25.webp (fundo da fase)."""
+Espera na pasta de referências: 24.webp (folha de itens), 28.webp (guia do Felipe, bolas e sementes) e 31.webp (fundo da fase)."""
 import sys, os
 from PIL import Image, ImageDraw
 import numpy as np
@@ -11,6 +11,8 @@ GAME = sys.argv[2] if len(sys.argv) > 2 else '..'
 OUT = os.path.join(GAME, 'assets', 'fase1'); FEL = os.path.join(GAME, 'assets', 'felipe')
 os.makedirs(OUT, exist_ok=True); os.makedirs(FEL, exist_ok=True)
 SHEET = Image.open(os.path.join(REF, '24.webp')).convert('RGB')
+GUIDE = Image.open(os.path.join(REF, '28.webp')).convert('RGB')
+BG = Image.open(os.path.join(REF, '31.webp')).convert('RGB')
 
 def flood_alpha(rgb, bg, tol, edge0=14, edge1=40):
     H, W, _ = rgb.shape
@@ -87,16 +89,33 @@ la[reg_y0:reg_y1, reg_x0:reg_x1] = reg
 spr['lancador'] = Image.fromarray(la, 'RGBA')
 for n, im in spr.items():
     im.save(os.path.join(OUT, n + '.png'), optimize=True); print(n, im.size)
-# fundo fixo (imagem 25)
-Image.open(os.path.join(REF, '25.webp')).convert('RGB').save(os.path.join(OUT, 'fundo.webp'), quality=86, method=6)
+# fundo fixo (imagem 31: jardim com árvore de sementes e portão)
+BG.save(os.path.join(OUT, 'fundo.webp'), quality=86, method=6)
 
-# --- retratos do Felipe (círculo 256x256)
-faces = {'feliz': (38, 85, 187, 238), 'neutro': (203, 85, 352, 238), 'empolgado': (368, 82, 517, 238), 'triste': (533, 85, 680, 238), 'vitoria': (697, 85, 846, 238)}
+# árvore de sementes: recorte do próprio fundo (sobreposto no mesmo lugar, só aparece balançando)
+TB = (63, 31, 368, 306); crop = BG.crop(TB); tw, th = crop.size
+m = Image.new('L', (tw, th), 0); ImageDraw.Draw(m).ellipse((tw / 2 - 138, th / 2 - 132, tw / 2 + 138, th / 2 + 138), fill=255)
+from PIL import ImageFilter
+m = m.filter(ImageFilter.GaussianBlur(14)); tree = crop.convert('RGBA'); tree.putalpha(m); tree.save(os.path.join(OUT, 'arvore.png'), optimize=True)
+f = 540 / 941
+print('arvore: x0=%.1f y0=%.1f w=%.1f h=%.1f pivo=(%.1f,%.1f)' % (TB[0] * f, TB[1] * f, tw * f, th * f, 212 * f, 259 * f))
+
+# --- retratos do Felipe (guia 28): disco colorido de cada reação
+faces = {'feliz': (43, 318, 217, 468), 'triste': (237, 318, 411, 468), 'assustado': (430, 318, 604, 468),
+         'concentrado': (43, 510, 217, 660), 'vitoria': (235, 510, 409, 660), 'upiii': (422, 510, 606, 660)}
 for k, b in faces.items():
-    c = SHEET.crop(b); s = max(c.size); sq = Image.new('RGB', (s, s), (30, 44, 70)); sq.paste(c, ((s - c.width) // 2, (s - c.height) // 2))
+    c = GUIDE.crop(b); s2 = max(c.size); sq = Image.new('RGB', (s2, s2), (230, 240, 250)); sq.paste(c, ((s2 - c.width) // 2, (s2 - c.height) // 2))
     sq = sq.resize((256, 256), Image.LANCZOS)
-    m = Image.new('L', (256, 256), 0); ImageDraw.Draw(m).ellipse((2, 2, 253, 253), fill=255)
-    o = sq.convert('RGBA'); o.putalpha(m); o.save(os.path.join(FEL, k + '.webp'), quality=90)
-# folha de personagens para a tela "Personagens"
-SHEET.save(os.path.join(GAME, 'assets', 'ui', 'personagens.webp'), quality=84)
+    mk = Image.new('L', (256, 256), 0); ImageDraw.Draw(mk).ellipse((12, 12, 244, 244), fill=255)
+    sq = sq.crop((8, 8, 248, 248)).resize((256, 256), Image.LANCZOS); mk = Image.new('L', (256, 256), 0); ImageDraw.Draw(mk).ellipse((2, 2, 253, 253), fill=255)
+    o = sq.convert('RGBA'); o.putalpha(mk); o.save(os.path.join(FEL, k + '.webp'), quality=90)
+# --- semente dourada (bolinha extra): círculo recortado do guia
+sb = (786, 820, 940, 974); sc = np.array(GUIDE.crop(sb)).astype(int)
+gold = (sc[..., 0] > 200) & (sc[..., 1] > 110) & (sc[..., 2] < 120)
+ys, xs = np.nonzero(gold); cx, cy = (xs.min() + xs.max()) / 2, (ys.min() + ys.max()) / 2; rad = max(xs.max() - xs.min(), ys.max() - ys.min()) / 2 + 1
+seed = GUIDE.crop(sb).convert('RGBA'); mk = Image.new('L', seed.size, 0); ImageDraw.Draw(mk).ellipse((cx - rad, cy - rad, cx + rad, cy + rad), fill=255)
+seed.putalpha(mk.filter(ImageFilter.GaussianBlur(.8))); seed = seed.crop((int(cx - rad), int(cy - rad), int(cx + rad), int(cy + rad))).resize((128, 128), Image.LANCZOS)
+seed.save(os.path.join(OUT, 'semente.png'), optimize=True)
+# folha de personagens para a tela "Personagens" (guia 28 + folha de itens 24)
+GUIDE.save(os.path.join(GAME, 'assets', 'ui', 'personagens.webp'), quality=84)
 print('ok, giro do flipper', round(ang, 1))

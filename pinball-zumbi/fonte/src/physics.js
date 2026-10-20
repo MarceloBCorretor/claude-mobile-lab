@@ -1,4 +1,4 @@
-import { BR, G, MAXV } from './config.js';
+import { G, MAXV } from './config.js';
 
 export const segs = [];
 function seg(x1, y1, x2, y2, o) { segs.push(Object.assign({ x1, y1, x2, y2, r: 2, e: .4 }, o || {})); }
@@ -8,22 +8,22 @@ function arc(cx, cy, r, a0, a1, n) {
     seg(cx + r * Math.cos(p0), cy + r * Math.sin(p0), cx + r * Math.cos(p1), cy + r * Math.sin(p1), { e: .3 });
   }
 }
-export const WALL = { L: 44, R: 496, T: 108, CR: 40 };
-export const POCKET_L = 240, POCKET_R = 300, POCKET_TOP = 866;
+export const WALL = { L: 44, R: 496, T: 112, CR: 40 };
+export const POCKET_L = 240, POCKET_R = 300;
 {
   const { L, R, T, CR } = WALL;
   seg(L + CR, T, R - CR, T);
   arc(L + CR, T + CR, CR, Math.PI, 1.5 * Math.PI, 6);
   arc(R - CR, T + CR, CR, 1.5 * Math.PI, 2 * Math.PI, 6);
-  seg(L, T + CR, L, 780); seg(R, T + CR, R, 780);
-  seg(L, 780, 90, 828); seg(R, 780, 450, 828);                          // guias até os flippers
-  seg(POCKET_L, POCKET_TOP, POCKET_L, 918); seg(POCKET_R, POCKET_TOP, POCKET_R, 918);   // bolso do lançador
-  seg(POCKET_L, 918, POCKET_R, 918, { e: .05 });
+  seg(L, T + CR, L, 814); seg(R, T + CR, R, 814);
+  seg(L, 814, 92, 864); seg(R, 814, 448, 864);                          // guias até os flippers
+  seg(POCKET_L, 918, POCKET_R, 918, { e: .05 });                        // assento do lançador (a bola que cai fora dele se perde)
 }
 
+// Flippers: pivôs perto do centro e braço longo, para a bolinha que desce pelo meio ser rebatida
 export const flippers = [
-  { s: 1, px: 92, py: 838, L: 104, a: .42, rest: .42, up: -.5, w: 0, held: false },
-  { s: -1, px: 448, py: 838, L: 104, a: .42, rest: .42, up: -.5, w: 0, held: false }
+  { s: 1, px: 100, py: 872, L: 122, a: .28, rest: .28, up: -.55, w: 0, held: false },
+  { s: -1, px: 440, py: 872, L: 122, a: .28, rest: .28, up: -.55, w: 0, held: false }
 ];
 export const FLIP_R = 11;
 export function flipTip(f) { return [f.px + f.s * f.L * Math.cos(f.a), f.py + f.L * Math.sin(f.a)]; }
@@ -37,7 +37,7 @@ function collideSeg(b, s, f) {
   let t = ((b.x - s.x1) * dx + (b.y - s.y1) * dy) / l2; t = t < 0 ? 0 : t > 1 ? 1 : t;
   const px = s.x1 + dx * t, py = s.y1 + dy * t;
   let nx = b.x - px, ny = b.y - py, d = Math.hypot(nx, ny);
-  const R = BR + s.r;
+  const R = b.r + s.r;
   if (d >= R) return false;
   if (d < 1e-6) { nx = -dy; ny = dx; d = Math.hypot(nx, ny) || 1; }
   nx /= d; ny /= d; b.x += nx * (R - d); b.y += ny * (R - d);
@@ -49,7 +49,7 @@ function collideSeg(b, s, f) {
 }
 function collideCirc(b, c, e, kick) {
   let nx = b.x - c.x, ny = b.y - c.y, d = Math.hypot(nx, ny);
-  const R = BR + c.r;
+  const R = b.r + c.r;
   if (d >= R) return false;
   if (d < 1e-6) { nx = 0; ny = -1; d = 1; }
   nx /= d; ny /= d; b.x += nx * (R - d); b.y += ny * (R - d);
@@ -58,9 +58,10 @@ function collideCirc(b, c, e, kick) {
   return false;
 }
 
-// S: { ball, obstacles, slots, zombies, hooks:{onObstacle,onPlant,onZombie,onFlipper} }
+// S: { balls, obstacles, slots, zombies, hooks:{onObstacle(o,b),onPlant(sl,b),onZombie(z,speed,b),onFlipper(f)} }
+// Cada bolinha (principal ou semente extra) é calculada de forma independente.
 export function stepPhysics(dt, S) {
-  const b = S.ball, N = Math.max(1, Math.ceil(dt / (1 / 480))), h = dt / N;
+  const N = Math.max(1, Math.ceil(dt / (1 / 480))), h = dt / N;
   const SRAD = S.slotRadius;
   for (let i = 0; i < N; i++) {
     for (const f of flippers) {
@@ -68,25 +69,28 @@ export function stepPhysics(dt, S) {
       if (f.a > tgt) f.a = Math.max(tgt, f.a - sp * h); else if (f.a < tgt) f.a = Math.min(tgt, f.a + sp * h);
       f.w = (f.a - old) / h;
     }
-    if (!b.active) continue;
-    b.vy += G * h; b.x += b.vx * h; b.y += b.vy * h;
-    const sp = Math.hypot(b.vx, b.vy);
-    if (sp > MAXV) { b.vx *= MAXV / sp; b.vy *= MAXV / sp; }
-    for (const s of segs) collideSeg(b, s, null);
-    for (const f of flippers) {
-      const t = flipTip(f);
-      if (collideSeg(b, { x1: f.px, y1: f.py, x2: t[0], y2: t[1], r: FLIP_R, e: .25 }, f) && Math.abs(f.w) > 3) S.hooks.onFlipper(f);
-    }
-    for (const o of S.obstacles) if (collideCirc(b, o, o.e || .9, o.kick)) S.hooks.onObstacle(o);
-    for (const sl of S.slots) { // a bola atravessa as plantas e só as aciona (sem quicar)
-      if (!sl.plant) { sl.inside = false; continue; }
-      const d = Math.hypot(b.x - sl.x, b.y - sl.y);
-      if (!sl.inside && d < SRAD + BR * .4) { sl.inside = true; S.hooks.onPlant(sl); } else if (sl.inside && d > SRAD + BR * .4 + 10) sl.inside = false;
-    }
-    for (const z of S.zombies) {
-      if (z.dead) continue;
-      const vx0 = b.vx, vy0 = b.vy;
-      if (collideCirc(b, { x: z.x, y: z.y, r: z.r }, .6, 140)) S.hooks.onZombie(z, Math.hypot(vx0, vy0));
+    for (const b of S.balls) {
+      if (!b.active) continue;
+      b.vy += G * h; b.x += b.vx * h; b.y += b.vy * h;
+      const sp = Math.hypot(b.vx, b.vy);
+      if (sp > MAXV) { b.vx *= MAXV / sp; b.vy *= MAXV / sp; }
+      for (const s of segs) collideSeg(b, s, null);
+      for (const f of flippers) {
+        const t = flipTip(f);
+        if (collideSeg(b, { x1: f.px, y1: f.py, x2: t[0], y2: t[1], r: FLIP_R, e: .25 }, f) && Math.abs(f.w) > 3) S.hooks.onFlipper(f);
+      }
+      for (const o of S.obstacles) if (collideCirc(b, o, o.e || .9, o.kick)) S.hooks.onObstacle(o, b);
+      b.ins = b.ins || {};
+      for (const sl of S.slots) { // a bola atravessa as plantas e só as aciona (sem quicar)
+        if (!sl.plant) { b.ins[sl.idx] = false; continue; }
+        const d = Math.hypot(b.x - sl.x, b.y - sl.y);
+        if (!b.ins[sl.idx] && d < SRAD + b.r * .4) { b.ins[sl.idx] = true; S.hooks.onPlant(sl, b); } else if (b.ins[sl.idx] && d > SRAD + b.r * .4 + 10) b.ins[sl.idx] = false;
+      }
+      for (const z of S.zombies) {
+        if (z.dead) continue;
+        const vx0 = b.vx, vy0 = b.vy;
+        if (collideCirc(b, { x: z.x, y: z.y, r: z.r }, .6, 140)) S.hooks.onZombie(z, Math.hypot(vx0, vy0), b);
+      }
     }
   }
 }
