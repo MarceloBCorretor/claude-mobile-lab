@@ -222,34 +222,33 @@ export function buildFlipper(L, s) {
 
 /* ---------- chão procedural ---------- */
 function paintGround(id) {
-  const c = document.createElement('canvas'); c.width = 1080; c.height = 1920; const g = c.getContext('2d'); g.scale(2, 2);
+  const HH = 740, c = document.createElement('canvas'); c.width = 1080; c.height = HH * 2; const g = c.getContext('2d'); g.scale(2, 2);
   const dots = (n, cols, rmin, rmax, y0, y1) => { for (let i = 0; i < n; i++) { g.fillStyle = cols[(Math.random() * cols.length) | 0]; g.beginPath(); g.arc(Math.random() * 540, y0 + Math.random() * (y1 - y0), rmin + Math.random() * (rmax - rmin), 0, 7); g.fill(); } };
-  const tiles = (y0, y1, col, gap) => { g.fillStyle = gap; g.fillRect(0, y0, 540, y1 - y0); for (let y = y0; y < y1; y += 44) for (let x = (((y - y0) / 44) % 2) * 30 - 30; x < 540; x += 60) { g.fillStyle = col[(Math.random() * col.length) | 0]; g.beginPath(); g.roundRect(x + 3, y + 3, 54, 38, 8); g.fill(); } };
+  const flowers = (n, y0, y1) => { for (let i = 0; i < n; i++) { const x = Math.random() * 540, y = y0 + Math.random() * (y1 - y0), col = ['#ffffff', '#ffe36b', '#ff8fc8', '#b78cff'][i % 4]; g.fillStyle = col; for (let k = 0; k < 5; k++) { g.beginPath(); g.arc(x + Math.cos(k * 1.256) * 2.6, y + Math.sin(k * 1.256) * 2.6, 2, 0, 7); g.fill(); } g.fillStyle = '#ffb31a'; g.beginPath(); g.arc(x, y, 1.4, 0, 7); g.fill(); } };
+  const tiles = (y0, y1, col, gap) => { g.fillStyle = gap; g.fillRect(0, y0, 540, y1 - y0); for (let y = y0; y < y1; y += 40) for (let x = (((y - y0) / 40) % 2) * 30 - 30; x < 540; x += 60) { g.fillStyle = col[(Math.random() * col.length) | 0]; g.beginPath(); g.roundRect(x + 3, y + 3, 54, 34, 8); g.fill(); } };
+  const grassStripes = (y0, y1, a, b) => { for (let y = y0; y < y1; y += 52) { g.fillStyle = ((y - y0) / 52) % 2 ? a : b; g.fillRect(0, y, 540, Math.min(52, y1 - y)); } };
   if (id === 'a') {
-    for (let y = 0; y < 360; y += 60) { g.fillStyle = (y / 60) % 2 ? '#58ad3b' : '#63bd44'; g.fillRect(0, y, 540, 60); }
-    dots(600, ['#4f9f35', '#6fc84c', '#3f8a2d'], 1, 3, 0, 360); dots(40, ['#ffffff', '#ffe36b'], 2, 4, 90, 340);
-    g.fillStyle = '#b98a52'; g.fillRect(0, 340, 540, 440);
-    dots(900, ['#a77a45', '#c99a5f', '#9a6f3c', '#d1a56a'], 1, 4, 340, 780); dots(25, ['#8d8f93', '#aeb2b7'], 4, 9, 360, 760);
-    let gr = g.createLinearGradient(0, 300, 0, 380); gr.addColorStop(0, '#63bd4400'); gr.addColorStop(1, '#b98a5200'); g.fillStyle = gr; g.fillRect(0, 300, 540, 80);
-    tiles(780, 960, ['#9fa3a8', '#b3b7bc', '#8e9297'], '#4c8a38');
+    grassStripes(0, 560, '#5aae3d', '#66bf47');
+    dots(1400, ['#4f9f35', '#74cc50', '#3f8a2d'], 1, 2.6, 0, 560); flowers(70, 20, 540);
+    g.strokeStyle = '#d9c79a'; g.globalAlpha = .55; g.lineWidth = 34; g.lineCap = 'round'; g.beginPath(); g.moveTo(270, 40); g.bezierCurveTo(120, 160, 420, 300, 270, 540); g.stroke(); g.globalAlpha = 1;
+    tiles(560, 740, ['#a3a7ac', '#b7bbc0', '#93979c'], '#4c8a38');
   } else if (id === 'b') {
-    g.fillStyle = '#4b4e57'; g.fillRect(0, 0, 540, 960); dots(2200, ['#3d4048', '#575a63', '#444750'], 1, 3, 0, 960);
-    g.fillStyle = '#e3b53a'; for (let y = 100; y < 780; y += 90) g.fillRect(264, y, 12, 50);
-    g.fillStyle = '#e9e9e9'; for (const x of [150, 390]) for (let y = 110; y < 780; y += 120) g.fillRect(x, y, 6, 60);
-    g.fillStyle = '#a8a7a1'; g.fillRect(0, 0, 52, 960); g.fillRect(488, 0, 52, 960);
-    g.fillStyle = '#8f8e88'; g.fillRect(48, 0, 5, 960); g.fillRect(487, 0, 5, 960);
-    tiles(780, 960, ['#9fa3a8', '#b3b7bc', '#8e9297'], '#3d4a38');
+    g.fillStyle = '#4b4e57'; g.fillRect(0, 0, 540, 740); dots(2200, ['#3d4048', '#575a63', '#444750'], 1, 3, 0, 740);
+    g.fillStyle = '#e3b53a'; for (let y = 60; y < 540; y += 80) g.fillRect(264, y, 12, 44);
+    g.fillStyle = '#e9e9e9'; for (const x of [150, 390]) for (let y = 70; y < 540; y += 110) g.fillRect(x, y, 6, 54);
+    g.fillStyle = '#a8a7a1'; g.fillRect(0, 0, 40, 740); g.fillRect(500, 0, 40, 740);
+    g.fillStyle = '#8f8e88'; g.fillRect(36, 0, 5, 740); g.fillRect(499, 0, 5, 740);
+    tiles(560, 740, ['#a3a7ac', '#b7bbc0', '#93979c'], '#3d4a38');
   } else {
-    g.fillStyle = '#58a83c'; g.fillRect(0, 0, 540, 960); dots(900, ['#4a9831', '#68b948', '#3f8a2d'], 1, 3, 0, 780);
-    g.strokeStyle = '#dccaa0'; g.lineWidth = 70; g.lineCap = 'round'; g.beginPath(); g.moveTo(270, 110); g.bezierCurveTo(60, 230, 60, 380, 270, 460); g.bezierCurveTo(480, 560, 480, 700, 270, 790); g.stroke();
-    g.strokeStyle = '#cdb98a'; g.lineWidth = 6; g.stroke();
-    g.fillStyle = '#d8d1c1'; g.beginPath(); g.arc(270, 520, 98, 0, 7); g.fill();
-    dots(600, ['#cbbf9c', '#e6d9b5'], 1, 3, 90, 790);
-    dots(70, ['#ff7ab8', '#ffe36b', '#ffffff', '#b78cff'], 2, 4, 90, 770);
-    tiles(780, 960, ['#9fa3a8', '#b3b7bc', '#8e9297'], '#3f7a34');
+    grassStripes(0, 560, '#58a83c', '#62b544'); dots(1200, ['#4a9831', '#68b948', '#3f8a2d'], 1, 2.6, 0, 560);
+    g.strokeStyle = '#dccaa0'; g.lineWidth = 56; g.lineCap = 'round'; g.beginPath(); g.moveTo(270, 50); g.bezierCurveTo(60, 140, 60, 260, 270, 330); g.bezierCurveTo(480, 400, 480, 500, 270, 560); g.stroke();
+    g.strokeStyle = '#cdb98a'; g.lineWidth = 5; g.stroke();
+    g.fillStyle = '#d8d1c1'; g.beginPath(); g.arc(270, 330, 92, 0, 7); g.fill();
+    dots(500, ['#cbbf9c', '#e6d9b5'], 1, 3, 40, 560); flowers(80, 20, 540);
+    tiles(560, 740, ['#a3a7ac', '#b7bbc0', '#93979c'], '#3f7a34');
   }
-  // caminho de pedra até o portão (todas as fases)
-  g.fillStyle = '#d7d2c4'; g.globalAlpha = .55; for (let y = 800; y < 940; y += 36) { g.beginPath(); g.roundRect(236, y, 68, 26, 6); g.fill(); } g.globalAlpha = 1;
+  // caminho de pedra do lançador até a arena
+  g.fillStyle = '#e2dccb'; g.globalAlpha = .6; for (let y = 572; y < 730; y += 30) { g.beginPath(); g.roundRect(240, y, 60, 22, 6); g.fill(); } g.globalAlpha = 1;
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 export function groundTexture(id) { return paintGround(id); }

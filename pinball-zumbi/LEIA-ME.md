@@ -22,7 +22,7 @@ cd fonte
 npm install        (só na primeira vez)
 npm run build      (gera ../game.js e ../index.html)
 ```
-A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v2` para `v3`...).
+A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v3` para `v4`...).
 
 ## Imagens do Felipe
 `assets/felipe/` tem os 6 retratos de reação (feliz, triste, assustado, concentrado, vitória, upiii).

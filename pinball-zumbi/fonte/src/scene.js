@@ -5,11 +5,11 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { S, mat, glow, buildObstacle, buildFlipper, buildCar, buildBench, buildBigTree, buildLamp, groundTexture, slotIconTex, dangerTex } from './models.js';
-import { SCEN, DANGER, BR } from './config.js';
+import { SCEN, DANGER, BR, TC, H, POCKET } from './config.js';
 import { segs, flippers } from './physics.js';
 
 export const wx = x => (x - 270) * S;
-export const wz = y => (y - 480) * S;
+export const wz = y => (y - TC) * S;
 
 export function createStage(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -21,7 +21,7 @@ export function createStage(canvas) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = .55;
-  const camera = new THREE.PerspectiveCamera(46, 9 / 16, .1, 300);
+  const camera = new THREE.PerspectiveCamera(40, 9 / 16, .1, 300);
 
   scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x6b8a3a, .65));
   const sun = new THREE.DirectionalLight(0xffd9a0, 2.1);
@@ -34,7 +34,7 @@ export function createStage(canvas) {
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .7, .5, 1.1);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), .55, .45, 1.1);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
@@ -78,30 +78,35 @@ export function createStage(canvas) {
     const trim = new THREE.Mesh(new THREE.BoxGeometry(len + .06, .08, .42), mat(0xb07a3c)); trim.position.y = .35; m.add(trim);
     return m;
   }
+  function rail(s) {
+    const dx = s.x2 - s.x1, dy = s.y2 - s.y1, len = Math.hypot(dx, dy) * S, metal = s.rail === 'pocket';
+    const m = new THREE.Mesh(new THREE.BoxGeometry(len + .1, metal ? .34 : .3, metal ? .16 : .26), metal ? mat(0xe0a92e, { metalness: .8, roughness: .3 }) : mat(0xd59a3f, { roughness: .5 }));
+    m.position.set(wx((s.x1 + s.x2) / 2), metal ? .17 : .15, wz((s.y1 + s.y2) / 2)); m.rotation.y = -Math.atan2(dy, dx); m.castShadow = true; m.receiveShadow = true;
+    if (!metal) { const cap = new THREE.Mesh(new THREE.CylinderGeometry(.16, .16, .34, 14), glow(0x3dff6a, 1.4)); cap.position.set(-(len / 2), .02, 0); m.add(cap); }
+    return m;
+  }
   function buildTable(si) {
     clearWorld();
     const sc = SCEN[si], refs = { obstacles: [], slots: [], flippers: [], extras: {} };
     // chão
     const gt = groundTexture(sc.id);
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(540 * S, 960 * S), new THREE.MeshStandardMaterial({ map: gt, roughness: .95 }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(540 * S, H * S), new THREE.MeshStandardMaterial({ map: gt, roughness: .95 }));
     ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; world.add(ground);
     const outer = new THREE.Mesh(new THREE.PlaneGeometry(90, 90), new THREE.MeshStandardMaterial({ color: sc.id === 'b' ? 0x6d7078 : 0x3f8f3a, roughness: 1 }));
     outer.rotation.x = -Math.PI / 2; outer.position.y = -.02; outer.receiveShadow = true; world.add(outer);
     scene.background.set(sc.id === 'b' ? 0x7aa6c8 : 0x6fb2e0); scene.fog.color.set(sc.id === 'b' ? 0x8aa9c0 : 0x7fbf8a);
-    // paredes (só as que formam a mesa)
-    for (const s of segs) world.add(wall(s));
+    // sem paredes internas: só as guias dos flippers e o bolso do lançador são visíveis
+    for (const s of segs) if (s.rail) world.add(rail(s));
     // linha de perigo
     const dm = new THREE.MeshBasicMaterial({ map: dangerTex(), toneMapped: false, transparent: true });
-    const danger = new THREE.Mesh(new THREE.PlaneGeometry(9.2, 1.0), dm); danger.rotation.x = -Math.PI / 2; danger.position.set(0, .03, wz(DANGER + 18)); world.add(danger);
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(9.0, .05, .09), glow(0xff2a2a, 3)); bar.position.set(0, .06, wz(DANGER)); world.add(bar);
+    const danger = new THREE.Mesh(new THREE.PlaneGeometry(10.8, 1.0), dm); danger.rotation.x = -Math.PI / 2; danger.position.set(0, .03, wz(DANGER + 18)); world.add(danger);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(10.8, .05, .09), glow(0xff2a2a, 3)); bar.position.set(0, .06, wz(DANGER)); world.add(bar);
     refs.extras.dangerBar = bar; refs.extras.danger = dm;
     // lançador
-    const pocket = new THREE.Group();
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(.62, .09, 10, 28), mat(0xb9c0c6, { metalness: .9, roughness: .25 })); rim.rotation.x = Math.PI / 2; rim.position.set(wx(270), .12, wz(918)); world.add(rim);
-    const arrow = new THREE.Mesh(new THREE.ConeGeometry(.28, .5, 3), glow(0xffcc33, 2.4)); arrow.rotation.x = -Math.PI / 2; arrow.position.set(wx(270), .1, wz(862)); world.add(arrow);
-    refs.extras.arrow = arrow;
+    const base = new THREE.Mesh(new THREE.BoxGeometry(1.5, .08, 1.15), mat(0x8a929a, { metalness: .85, roughness: .3 })); base.position.set(wx(270), .04, wz(POCKET.floor - 14)); base.receiveShadow = true; world.add(base);
+    const groove = new THREE.Mesh(new THREE.BoxGeometry(1.25, .05, .9), mat(0x3a3f45, { metalness: .6, roughness: .5 })); groove.position.set(wx(270), .08, wz(POCKET.floor - 14)); world.add(groove);
     refs.extras.dots = [];
-    for (let i = 0; i < 4; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 6), glow(0xffcc33, 2.4)); d.position.set(wx(270), .08, wz(842 - i * 26)); world.add(d); refs.extras.dots.push(d); }
+    for (let i = 0; i < 4; i++) { const d = new THREE.Mesh(new THREE.SphereGeometry(.075, 8, 6), glow(0xffcc33, 2.4)); d.position.set(wx(270), .08, wz(640 - i * 24)); world.add(d); refs.extras.dots.push(d); }
     // flippers
     for (const f of flippers) {
       const m = buildFlipper(f.L, f.s); m.position.set(wx(f.px), .1, wz(f.py)); world.add(m); refs.flippers.push(m);
@@ -129,40 +134,50 @@ export function createStage(canvas) {
   function decorate(sc, refs) {
     const add = (o, x, z, ry, s) => { o.position.set(x, 0, z); if (ry) o.rotation.y = ry; if (s) o.scale.setScalar(s); o.traverse(m => { if (m.isMesh) m.castShadow = true; }); world.add(o); return o; };
     const hedge = () => buildObstacle('bush', 40);
+    // árvores e arbustos no perímetro, encostando nas bordas da tela (sem paredes internas)
+    const side = (fn, n, x0, z0, z1) => { for (let i = 0; i < n; i++) { const z = z0 + (z1 - z0) * i / (n - 1); add(fn(i), -x0 - (i % 2) * .5, z, i); add(fn(i + 3), x0 + ((i + 1) % 2) * .5, z + .6, i * 2); } };
     if (sc.id === 'a') {
-      for (let i = 0; i < 7; i++) { add(buildBigTree(.9 + (i % 3) * .2), -7 - (i % 2) * 1.2, -8.5 + i * 2.6, i); add(buildBigTree(.8 + (i % 3) * .25), 7.3 + (i % 2) * 1.0, -8 + i * 2.7, i * 2); }
-      add(buildBigTree(1.2), -4.5, -11.5, 0); add(buildBigTree(1.1), 3.8, -11.8, 1); add(buildLamp(1), -5.9, 7.6, 0); add(buildLamp(1), 5.9, 7.6, 0);
-      add(buildBench(), 6.2, -3, Math.PI / 2, .9);
+      side(i => buildBigTree(.75 + (i % 3) * .12), 7, 6.0, -8.2, 8.4);
+      for (let i = 0; i < 5; i++) add(buildBigTree(.8 + (i % 2) * .15), (i < 2 ? -4.8 + i * 2.2 : 2.6 + (i - 2) * 1.6), -10.2 - (i % 2) * .8, i);
+      add(buildLamp(1), -5.2, 5.4, 0); add(buildLamp(1), 5.2, 5.4, 0);
     } else if (sc.id === 'b') {
-      add(buildCar(0xd9332a), -6.8, -3.8, 0); add(buildCar(0x2d5fb8), 6.8, -.2, Math.PI); add(buildCar(0xe8a020), -6.8, 4.5, 0);
-      for (const z of [-7, 0, 6.5]) { add(buildLamp(1.3), -5.9, z, 0); add(buildLamp(1.3), 5.9, z - 1.5, 0); }
-      for (let i = 0; i < 5; i++) { add(buildBigTree(1.1), -9.2, -9 + i * 4.8, i); add(buildBigTree(1.1), 9.2, -8 + i * 4.8, i + 3); }
+      add(buildCar(0xd9332a), -6.3, -3.2, 0); add(buildCar(0x2d5fb8), 6.3, .2, Math.PI); add(buildCar(0xe8a020), -6.3, 3.6, 0);
+      for (const z of [-6.2, -.6, 4.8]) { add(buildLamp(1.2), -5.3, z, 0); add(buildLamp(1.2), 5.3, z - 1.2, 0); }
+      side(i => buildBigTree(.8), 5, 7.6, -8, 8);
+      for (let i = 0; i < 4; i++) add(buildBigTree(.8), (i < 2 ? -4.6 + i * 1.8 : 2.8 + (i - 2) * 1.8), -10.4, i);
     } else {
-      for (let i = 0; i < 8; i++) { add(hedge(), -6.2, -9 + i * 2.5, 0, 1.3); add(hedge(), 6.2, -9 + i * 2.5, 0, 1.3); }
-      add(buildBench(), -5.7, 2.5, Math.PI / 2, 1); add(buildBench(), 5.7, 2.5, -Math.PI / 2, 1);
-      for (let i = 0; i < 4; i++) { add(buildBigTree(1.3), -8.5, -9 + i * 5, i); add(buildBigTree(1.3), 8.5, -9 + i * 5, i + 2); }
-      add(buildLamp(1.3), -5.9, 7, 0); add(buildLamp(1.3), 5.9, 7, 0);
+      side(() => hedge(), 9, 5.75, -7.6, 7.6);
+      side(i => buildBigTree(.9 + (i % 2) * .15), 5, 7.3, -8, 8);
+      add(buildBench(), -5.9, 2.4, Math.PI / 2, .9); add(buildBench(), 5.9, 2.4, -Math.PI / 2, .9);
+      for (let i = 0; i < 5; i++) add(buildBigTree(.85), (i < 2 ? -4.8 + i * 2.2 : 2.6 + (i - 2) * 1.6), -10.4, i);
     }
   }
 
   /* ---------- câmera ---------- */
-  const target = new THREE.Vector3(0, 0, 0), dir = new THREE.Vector3(0, .85, .53).normalize();
+  const target = new THREE.Vector3(0, 0, 0), dir = new THREE.Vector3(0, .9, .44).normalize();
   const camBase = new THREE.Vector3();
+  let fitOpt = { bottomNdc: -.62, topNdc: .8 };
+  // Enquadramento automático: escolhe inclinação, distância e centro para a mesa ocupar a largura toda,
+  // com o lançador logo acima do rodapé e o topo da mesa sob o cabeçalho (vale para 9:16, 19,5:9 e 20:9).
   function fitCamera() {
-    const corners = [[-5.0, 0, -8.3], [5.0, 0, -8.3], [-5.0, 0, 9.3], [5.0, 0, 9.3]];
-    const v = new THREE.Vector3();
-    const fits = (d, tz) => {
+    const v = new THREE.Vector3(), zTop = wz(40), zMid = wz(600), zBot = wz(POCKET.floor + 24), pitch = 62 * Math.PI / 180;
+    dir.set(0, Math.sin(pitch), Math.cos(pitch));
+    const test = (d, tz) => {
       target.set(0, 0, tz); camera.position.copy(target).addScaledVector(dir, d); camera.lookAt(target); camera.updateMatrixWorld(); camera.updateProjectionMatrix();
-      for (const c of corners) { v.set(c[0], c[1], c[2]).project(camera); if (Math.abs(v.x) > .97 || v.y > .6 || v.y < -.6) return false; }
-      return true;
+      v.set(5.4, 0, zMid).project(camera); const xm = v.x; v.set(0, 0, zTop).project(camera); const top = v.y; v.set(0, 0, zBot).project(camera); return { xm, top, bot: v.y };
     };
-    outer: for (let d = 10; d < 80; d += .25) {
-      const ok = []; for (let tz = -4; tz <= 4; tz += .25) if (fits(d, tz)) ok.push(tz);
-      if (ok.length) { const tz = ok[(ok.length / 2) | 0]; fits(d, tz); break outer; }
+    let ok = false;
+    for (let d = 8; d < 60 && !ok; d += .2) {
+      // ancora o lançador logo acima do rodapé
+      let tz = null; for (let t = -6; t <= 6; t += .05) { if (test(d, t).bot >= fitOpt.bottomNdc) { tz = t; break; } }
+      if (tz === null) continue;
+      const r = test(d, tz);
+      if (r.xm <= 1.0 && r.top <= fitOpt.topNdc) ok = true;
     }
     camBase.copy(camera.position);
   }
-  function resize(w, h) {
+  function resize(w, h, opt) {
+    if (opt) Object.assign(fitOpt, opt);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.dpr));
     renderer.setSize(w, h, false); composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q.dpr)); composer.setSize(w, h);
     bloom.resolution.set(w / 2, h / 2);
@@ -174,10 +189,10 @@ export function createStage(canvas) {
   function toLogical(cx, cy) { // clientX/Y -> coordenadas lógicas da mesa
     const r = canvas.getBoundingClientRect(); ndc.set(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(ndc, camera); if (!ray.ray.intersectPlane(plane, hit)) return null;
-    return [hit.x / S + 270, hit.z / S + 480];
+    return [hit.x / S + 270, hit.z / S + TC];
   }
   function toScreen(x, y, h) { // lógico -> px dentro do canvas
-    const v = new THREE.Vector3(wx(x), h || 1, wz(y)).project(camera), r = canvas.getBoundingClientRect();
+    const v = new THREE.Vector3(wx(x), h ?? 1, wz(y)).project(camera), r = canvas.getBoundingClientRect();
     return [(v.x + 1) / 2 * r.width, (1 - v.y) / 2 * r.height];
   }
 
@@ -206,9 +221,8 @@ export function createStage(canvas) {
       tableRefs.extras.dangerBar.material.emissiveIntensity = 2 + pulse * (st.danger ? 4 : 1.2);
       tableRefs.extras.danger.color.setScalar(.8 + pulse * (st.danger ? 1.4 : .4));
       const ready = !st.ball.active;
-      tableRefs.extras.arrow.visible = ready; tableRefs.extras.dots.forEach((d, i) => { d.visible = ready; d.material.emissiveIntensity = 1.2 + 2.4 * Math.max(0, Math.sin(time * 7 - i * .9)); });
-      tableRefs.extras.arrow.material.emissiveIntensity = 1.6 + pulse * 2;
-      tableRefs.slots.forEach((g, i) => { const has = st.slotHas[i]; g.userData.pad.visible = !has; g.userData.ring.material.emissiveIntensity = (st.slotHot === i ? 4.2 : 1.4) + pulse * (has ? .2 : .9); });
+      tableRefs.extras.dots.forEach((d, i) => { d.visible = ready; d.material.emissiveIntensity = 1.2 + 2.4 * Math.max(0, Math.sin(time * 7 - i * .9)); });
+      tableRefs.slots.forEach((g, i) => { const has = st.slotHas[i]; g.userData.pad.visible = !has; g.userData.ring.material.emissiveIntensity = (st.slotHot === i || (st.armedOk && st.armedOk[i]) ? 4.2 + pulse * 2 : 1.4) + pulse * (has ? .2 : .9); });
       tableRefs.obstacles.forEach((g, i) => { const h = st.obHit[i] || 0; g.scale.setScalar(1 + .12 * h); if (g.userData.ring) g.userData.ring.material.emissiveIntensity = 1.4 + 4 * h; if (g.userData.jet) g.userData.jet.scale.y = 1 + .15 * Math.sin(time * 9); });
     }
     // partículas cúbicas

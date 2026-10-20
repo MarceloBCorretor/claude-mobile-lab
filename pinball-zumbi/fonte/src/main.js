@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createStage, wx, wz } from './scene.js';
 import { buildZombie, buildPlant, levelBadge, levelRing, S as SC } from './models.js';
 import { stepPhysics, flippers, WALL } from './physics.js';
-import { SCEN, TYPES, ORDER, DMG, MAXLVL, DANGER, SR, POCKET, WAVES_PER_SCEN, BR } from './config.js';
+import { SCEN, TYPES, ORDER, DMG, MAXLVL, DANGER, SR, POCKET, WAVES_PER_SCEN, BR, SPAWN_Y, priceFor } from './config.js';
 import { snd, vib, isMuted, setMuted, unlockAudio } from './audio.js';
 
 const $ = id => document.getElementById(id);
@@ -59,17 +59,16 @@ function hud() {
   const gd = G.gold > 0; if (c.gold !== gd) { $('goldTag').style.display = gd ? 'block' : 'none'; c.gold = gd; }
   const cb = G.combo; if (c.combo !== cb || c.gold2 !== gd) { $('comboTag').style.display = !gd && cb > 1 ? 'block' : 'none'; $('comboN').textContent = cb; c.combo = cb; c.gold2 = gd; }
   const f = faceNow(); if (f !== lastFace) { $('face').src = FACES[f]; lastFace = f; }
-  $('launchFill').style.height = (input.charge * 100) + '%';
-  $('launch').classList.toggle('charging', input.charging);
-  $('launchBall').style.display = ball.active ? 'none' : 'block';
+  const lbEl = $('launch'); lbEl.style.setProperty('--p', Math.round(input.charge * 100)); lbEl.classList.toggle('charging', input.charging); lbEl.classList.toggle('ready', !ball.active);
+  $('gzL').classList.toggle('on', flippers[0].held); $('gzR').classList.toggle('on', flippers[1].held);
+  if (c.priceWave !== G.wave) { c.priceWave = G.wave; document.querySelectorAll('.card').forEach(el => { el.querySelector('.pv').textContent = priceFor(el.dataset.t, G.wave); }); refreshCards(); }
+  document.querySelectorAll('.card').forEach(el => el.classList.toggle('armed', input.armed === el.dataset.t));
 }
 function buildCards() {
-  for (const [col, list] of [['colL', ['pea', 'ice']], ['colR', ['bomb', 'sun']]]) {
-    $(col).innerHTML = list.map(t => `<button class="card ${t}" data-t="${t}" aria-label="${TYPES[t].name}"><img class="ic" src="${icons[t]}" alt=""><span><span class="nm">${TYPES[t].name}</span><span class="pr"><i class="coin"></i>${TYPES[t].price}</span></span></button>`).join('');
-  }
+  $('footer').innerHTML = ORDER.map(t => `<button class="card ${t}" data-t="${t}" aria-label="${TYPES[t].name}"><img class="ic" src="${icons[t]}" alt=""><span class="tx"><span class="nm">${TYPES[t].name}</span><span class="pr"><i class="coin"></i><b class="pv">${priceFor(t, G.wave || 1)}</b></span></span></button>`).join('');
   document.querySelectorAll('.card').forEach(el => el.addEventListener('pointerdown', e => startCardDrag(e, el.dataset.t)));
 }
-function refreshCards() { document.querySelectorAll('.card').forEach(el => el.classList.toggle('off', G.coins < TYPES[el.dataset.t].price)); }
+function refreshCards() { document.querySelectorAll('.card').forEach(el => el.classList.toggle('off', G.coins < priceFor(el.dataset.t, G.wave))); }
 function toast(t) { const e = $('toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 1600); }
 function banner(t, sub) { $('banTxt').textContent = t; $('banSub').textContent = sub || ''; const b = $('banner'); b.classList.remove('go'); void b.offsetWidth; b.classList.add('go'); }
 function popup(mood, txt) { $('popImg').src = FACES[mood]; $('popTxt').textContent = txt; const p = $('pop'); p.classList.remove('go'); void p.offsetWidth; p.classList.add('go'); }
@@ -97,13 +96,16 @@ function mergeFx(sl) {
   floatText(sl.x, sl.y - 20, 'NÍVEL ' + sl.plant.lvl + '!', '#fff', true); snd(520, .12, 'triangle', .07);
   setTimeout(() => snd(780, .12, 'triangle', .07), 90); setTimeout(() => snd(1040, .2, 'triangle', .07), 180); vib(40);
 }
-function buy(type, sl) { // compra (arrastar) numa vaga, funde com nível 1 igual
-  const cost = TYPES[type].price;
+// Compra num local: vazio instala; mesma planta sobe 1 nível (fusão). Preço = base x 1,2^(onda-1), cobrado na hora.
+function buy(type, sl) {
   if (!sl) return false;
+  const cost = priceFor(type, G.wave);
+  if (sl.plant && (sl.plant.type !== type || sl.plant.lvl >= MAXLVL)) { floatText(sl.x, sl.y, sl.plant.lvl >= MAXLVL ? 'Nível máximo' : 'Local ocupado', '#ff8a8a'); snd(150, .12, 'square', .05); return false; }
   if (G.coins < cost) { floatText(sl.x, sl.y, 'Sem moedas', '#ff8a8a'); snd(150, .15, 'square', .05); return false; }
-  if (!sl.plant) { G.coins -= cost; placePlant(sl, type, 1); stage.burstCubes(sl.x, sl.y, 8, ['#6bbf46', '#9be55a'], 2.5, .6); snd(400, .1, 'triangle', .06); return true; }
-  if (sl.plant.type === type && sl.plant.lvl === 1) { G.coins -= cost; sl.plant.lvl = 2; plantMesh(sl); mergeFx(sl); return true; }
-  floatText(sl.x, sl.y, 'Não funde', '#ff8a8a'); snd(150, .12, 'square', .05); return false;
+  G.coins -= cost; G.spent = (G.spent || 0) + cost;
+  if (!sl.plant) { placePlant(sl, type, 1); stage.burstCubes(sl.x, sl.y, 8, ['#6bbf46', '#9be55a'], 2.5, .6); stage.flash(sl.x, sl.y, '#9dff6a', 30); snd(400, .1, 'triangle', .06); }
+  else { sl.plant.lvl++; plantMesh(sl); mergeFx(sl); }
+  floatText(sl.x, sl.y - 30, '-' + cost, '#ffd24a'); return true;
 }
 function moveDrop(fromSl, toSl) {
   if (!toSl || toSl === fromSl) { plantMesh(fromSl); return; }
@@ -117,7 +119,7 @@ function nearestSlot(lx, ly, maxD) { let best = null, bd = maxD; for (const s of
 function firePlant(sl) {
   const p = sl.plant, lvl = p.lvl, m = G.gold > 0 ? 2 : 1;
   if (p.type === 'sun') { const g = (2 + 2 * lvl) * m; G.coins += g; floatText(sl.x, sl.y - 20, '+' + g, '#ffe066'); stage.burstCubes(sl.x, sl.y, 5, ['#ffe066', '#ffc61a'], 2, .5); snd(880, .1, 'sine', .05, 1.4); return true; }
-  let tg = null, bd = 1e9; for (const z of zombies) { if (z.dead) continue; const d = Math.hypot(z.x - sl.x, z.y - sl.y); if (z.y < sl.y + 60 && d < bd) { bd = d; tg = z; } }
+  let tg = null, bd = 1e9; for (const z of zombies) { if (z.dead) continue; const d = Math.hypot(z.x - sl.x, z.y - sl.y); if (z.y > 60 && z.y < sl.y + 60 && d < bd) { bd = d; tg = z; } }
   if (!tg) return false;
   if (p.type === 'bomb') { explode(tg.x, tg.y, 80 + 10 * lvl, DMG[lvl] * 2 * m); snd(110, .25, 'sawtooth', .07, .5); return true; }
   const a0 = Math.atan2(tg.y - sl.y, tg.x - sl.x), angs = G.gold > 0 ? [-.28, 0, .28] : [0];
@@ -129,7 +131,7 @@ function newShot(x, y, a, type, dmg, lvl) {
   m.position.set(wx(x), .7, wz(y)); dyn.add(m); shots.push({ x, y, vx: Math.cos(a) * 560, vy: Math.sin(a) * 560, type, dmg, mesh: m, slow: ice });
 }
 function explode(x, y, r, dmg) {
-  stage.burstCubes(x, y, 22, ['#ff9a3c', '#ffd84a', '#ff5a1a'], 6, .8); stage.flash(x, y, '#ff9a3c', 90); stage.shake(.5);
+  stage.burstCubes(x, y, 22, ['#ff9a3c', '#ffd84a', '#ff5a1a'], 6, .8); stage.flash(x, y, '#ff9a3c', 35); stage.shake(.5);
   for (const z of zombies) if (!z.dead && Math.hypot(z.x - x, z.y - y) < r) hurt(z, dmg, false);
 }
 
@@ -138,8 +140,8 @@ const ZPAL = ['#6bbf46', '#4fa334', '#8ad65a', '#2f9bd6', '#5a3fa6'];
 function spawnZombie(boss) {
   const n = G.wave, si = scenIdx, r = Math.random();
   let type = 'normal'; if (boss) type = 'boss'; else if (n >= 3 && r < .22) type = 'runner'; else if (n >= 2 && r < .5) type = 'cone';
-  const base = 3 + .9 * n + 1.3 * si, sp = Math.min(60, 26 + 2.6 * n + 4 * si);
-  const z = { type, x: WALL.L + 70 + Math.random() * (WALL.R - WALL.L - 140), y: 112, ph: Math.random() * 6, flash: 0, slow: 0, stun: 0, dead: false, hitCd: 0, wander: Math.random() * 6 };
+  const base = 3 + .9 * n + 1.3 * si, sp = Math.min(46, 19 + 2 * n + 3 * si);
+  const z = { type, x: WALL.L + 70 + Math.random() * (WALL.R - WALL.L - 140), y: SPAWN_Y, ph: Math.random() * 6, flash: 0, slow: 0, stun: 0, dead: false, hitCd: 0, wander: Math.random() * 6 };
   const spec = { normal: [1, 1, 26, 8, 60], cone: [2.2, 1, 26, 12, 90], runner: [.6, 1.9, 22, 10, 80], boss: [10, .55, 40, 60, 600] }[type];
   z.hp = z.maxhp = base * spec[0]; z.sp = sp * spec[1]; z.r = spec[2]; z.coin = spec[3] + n + si * 2; z.pts = spec[4];
   z.mesh = buildZombie(type); z.mesh.position.set(wx(z.x), 0, wz(z.y));
@@ -157,7 +159,7 @@ function hurt(z, d, slow) {
 function killZombie(z) {
   z.dead = true; G.killed++; G.coins += z.coin; G.score += z.pts;
   const big = z.type === 'boss';
-  stage.burstCubes(z.x, z.y, big ? 56 : 18, ZPAL, big ? 7 : 4.5, big ? 1.5 : 1); stage.flash(z.x, z.y, '#b6ff7a', big ? 120 : 70); stage.shake(big ? .9 : .35);
+  stage.burstCubes(z.x, z.y, big ? 56 : 18, ZPAL, big ? 7 : 4.5, big ? 1.5 : 1); stage.flash(z.x, z.y, '#b6ff7a', big ? 45 : 22); stage.shake(big ? .9 : .35);
   floatText(z.x, z.y - 10, '+' + z.coin, '#ffe066'); snd(160, .2, 'sawtooth', .07, .4); vib(big ? 60 : 25);
   dyn.remove(z.mesh);
   popup('upiii', G.combo >= 3 ? 'COMBO!' : 'UPIII!'); setFelipe('upiii', 1.3, 2);
@@ -173,7 +175,7 @@ function leak(z) {
 function resetBall() { Object.assign(ball, { x: POCKET.x, y: POCKET.rest, vx: 0, vy: 0, active: false }); input.charge = 0; G.pocketT = 0; G.stuckT = 0; }
 function launch() {
   if (state !== 'play' || ball.active) { input.charge = 0; return; }
-  const v = 1050 + 650 * input.charge; ball.vy = -v; ball.vx = (Math.random() - .5) * 150; ball.active = true; input.charge = 0; G.pocketT = 0;
+  const v = 880 + 620 * input.charge; ball.vy = -v; ball.vx = (Math.random() - .5) * 150; ball.active = true; input.charge = 0; G.pocketT = 0;
   snd(200, .3, 'sawtooth', .06, 3); vib(25);
 }
 function bump(pts) {
@@ -202,7 +204,7 @@ function startGame(si) {
   SCEN[si].slots.forEach(([x, y], i) => slots.push({ x, y, plant: null, idx: i }));
   SCEN[si].obstacles.forEach(o => obstacles.push(Object.assign({ hit: 0 }, o)));
   G = { coins: 150 + si * 40, score: 0, lives: 3, wave: 0, toSpawn: 0, spawnT: 0, interval: 2, between: 2.2, clear: false, waveTotal: 0, killed: 0, leaked: 0, combo: 0, comboT: 0, gold: 0, t: 0, pocketT: 0, stuckT: 0 };
-  hudCache = {}; resetBall(); felipe = { mood: '', until: 0, prio: 0 };
+  hudCache = {}; input.armed = null; hotSlot = -1; resetBall(); felipe = { mood: '', until: 0, prio: 0 };
   showScreen(null); state = 'play'; banner('FASE ' + (si + 1), SCEN[si].name); setFelipe('feliz', 2, 1);
   buildCards(); hud();
 }
@@ -241,8 +243,10 @@ function update(dt) {
   // bolso do lançador / bola parada
   if (ball.active) {
     const sp = Math.hypot(ball.vx, ball.vy);
-    if (ball.y > 905) { G.pocketT += dt; if (G.pocketT > .45) { resetBall(); G.combo = 0; snd(300, .2, 'sine', .05, .5); } } else G.pocketT = 0;
-    G.stuckT += dt; if (G.stuckT > 1.8) { const moved = Math.hypot(ball.x - (G.sx || 0), ball.y - (G.sy || 0)); G.sx = ball.x; G.sy = ball.y; G.stuckT = 0; if (moved < 40 && ball.y < 880) { ball.vy = -750; ball.vx = (Math.random() - .5) * 500; } }
+    if (ball.y > 662 && ball.x > 232 && ball.x < 308) { G.pocketT += dt; if (G.pocketT > .45) { resetBall(); G.combo = 0; snd(300, .2, 'sine', .05, .5); } } else G.pocketT = 0;
+    G.stuckT += dt; if (G.stuckT > 1.8) { const moved = Math.hypot(ball.x - (G.sx || 0), ball.y - (G.sy || 0)); G.sx = ball.x; G.sy = ball.y; G.stuckT = 0; if (moved < 40 && ball.y < 650) { ball.vy = -750; ball.vx = (Math.random() - .5) * 500; } }
+    // segurança: bola fora do mundo jogável volta ao lançador
+    if (!(ball.x > 0 && ball.x < 540 && ball.y > 0 && ball.y < 760)) { resetBall(); toast('Bola de volta ao lançador'); }
   } else { ball.x = POCKET.x; ball.y = POCKET.rest; }
   if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
   if (G.gold > 0) G.gold -= dt;
@@ -282,7 +286,7 @@ function update(dt) {
   // tiros
   for (let i = shots.length - 1; i >= 0; i--) {
     const s = shots[i]; s.x += s.vx * dt; s.y += s.vy * dt; s.mesh.position.set(wx(s.x), .7, wz(s.y));
-    let gone = s.y < WALL.T || s.y > 900 || s.x < 20 || s.x > 520;
+    let gone = s.y < WALL.T || s.y > 700 || s.x < 10 || s.x > 530;
     if (!gone) for (const z of zombies) if (!z.dead && Math.hypot(z.x - s.x, z.y - s.y) < z.r + 8) { hurt(z, s.dmg, s.slow); stage.burstCubes(s.x, s.y, 3, [s.slow ? '#a8e6ff' : '#9be55a'], 2, .35); snd(300, .04, 'square', .03); gone = true; break; }
     if (gone) { dyn.remove(s.mesh); s.mesh.geometry.dispose(); shots.splice(i, 1); }
   }
@@ -291,6 +295,7 @@ const st = { ball, gold: false, danger: false, slotHas: [], slotHot: -1, obHit: 
 function frameState() {
   st.gold = G.gold > 0; st.danger = zombies.some(z => !z.dead && z.y > DANGER - 130);
   st.slotHas.length = 0; slots.forEach(s => st.slotHas.push(!!s.plant)); st.slotHot = hotSlot;
+  st.armedOk = input.armed ? slots.map(s => !s.plant || (s.plant.type === input.armed && s.plant.lvl < MAXLVL)) : null;
   st.obHit.length = 0; obstacles.forEach(o => st.obHit.push(o.hit));
 }
 
@@ -300,6 +305,11 @@ touch.addEventListener('pointerdown', e => {
   e.preventDefault(); unlockAudio(); if (state !== 'play') return;
   try { touch.setPointerCapture(e.pointerId); } catch (_) {}
   const L = stage.toLogical(e.clientX, e.clientY);
+  if (input.armed) { // poder escolhido no rodapé: o toque escolhe o local
+    const sl = L ? nearestSlot(L[0], L[1], 60) : null, t = input.armed; input.armed = null; hotSlot = -1;
+    if (sl) { buy(t, sl); return; }
+    toast('Compra cancelada'); return;
+  }
   if (L) { const sl = nearestSlot(L[0], L[1], 34); if (sl && sl.plant) { beginSlotDrag(e, sl); return; } }
   const r = gameEl.getBoundingClientRect(), left = e.clientX < r.left + r.width / 2;
   input.ptrs.set(e.pointerId, { k: left ? 'L' : 'R' }); snd(left ? 140 : 150, .05, 'square', .03);
@@ -334,7 +344,11 @@ function endDrag(e) {
   const r = gameEl.getBoundingClientRect(), L = stage.toLogical(e.clientX, e.clientY - r.height * .05);
   const target = d.moved && L && e.type !== 'pointercancel' ? nearestSlot(L[0], L[1], 70) : null; hotSlot = -1;
   if (d.src === 'shop') {
-    if (!d.moved && e.type !== 'pointercancel') { const sl = slots.find(s => !s.plant) || slots.find(s => s.plant.type === d.type && s.plant.lvl === 1); if (sl) buy(d.type, sl); else toast('Sem espaço'); }
+    if (!d.moved && e.type !== 'pointercancel') { // toque simples: arma o poder e mostra os locais
+      if (input.armed === d.type) { input.armed = null; hotSlot = -1; }
+      else if (G.coins < priceFor(d.type, G.wave)) { toast('Moedas insuficientes'); snd(150, .15, 'square', .05); }
+      else { input.armed = d.type; toast('Toque num local + para instalar'); snd(500, .06, 'triangle', .05); }
+    }
     else if (target) buy(d.type, target);
   } else { d.sl.plant.mesh.visible = true; moveDrop(d.sl, target); }
 }
@@ -379,8 +393,18 @@ $('bRestart').onclick = () => startGame(scenIdx);
 $('bQuit').onclick = toMenu; $('resMenu').onclick = toMenu;
 
 /* ===================== laço principal ===================== */
-function resize() { const r = gameEl.getBoundingClientRect(); stage.resize(Math.max(2, Math.round(r.width)), Math.max(2, Math.round(r.height))); }
-new ResizeObserver(resize).observe(gameEl); resize();
+function resize() {
+  const r = gameEl.getBoundingClientRect(), f = $('footer').getBoundingClientRect();
+  const lbH = r.width * .17; // altura reservada para o botão do lançador acima do rodapé
+  const bottomNdc = 1 - 2 * ((f.top - r.top) - lbH) / r.height;
+  stage.resize(Math.max(2, Math.round(r.width)), Math.max(2, Math.round(r.height)), { bottomNdc: Math.min(-.3, bottomNdc) });
+  placeLauncher();
+}
+function placeLauncher() { // botão do lançador alinhado ao bolso 3D
+  const [sx, sy] = stage.toScreen(POCKET.x, POCKET.floor + 26, 0), el = $('launch');
+  el.style.left = sx / gameEl.clientWidth * 100 + '%'; el.style.top = sy / gameEl.clientHeight * 100 + '%';
+}
+buildCards(); new ResizeObserver(resize).observe(gameEl); resize();
 let last = performance.now(), slow = 0, qLevel = 0;
 function frame(ts) {
   const rawDt = (ts - last) / 1000 || 0, dt = Math.min(.05, rawDt); last = ts;

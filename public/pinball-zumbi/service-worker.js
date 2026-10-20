@@ -1,4 +1,4 @@
-const VERSION='pinball-zumbi-v2';
+const VERSION='pinball-zumbi-v3';
 const SHELL=['./','./index.html','./game.js','./manifest.webmanifest','./assets/icones/icone-192.png','./assets/icones/icone-512.png',
  './assets/ui/menu.webp','./assets/ui/personagens.webp','./assets/ui/cenario-a.webp','./assets/ui/cenario-b.webp','./assets/ui/cenario-c.webp',
  './assets/felipe/feliz.webp','./assets/felipe/triste.webp','./assets/felipe/assustado.webp','./assets/felipe/concentrado.webp','./assets/felipe/vitoria.webp','./assets/felipe/upiii.webp'];

@@ -8,21 +8,21 @@ function arc(cx, cy, r, a0, a1, n) {
     seg(cx + r * Math.cos(p0), cy + r * Math.sin(p0), cx + r * Math.cos(p1), cy + r * Math.sin(p1), { e: .3 });
   }
 }
-export const WALL = { L: 30, R: 510, T: 88, CR: 48 };
+export const WALL = { L: 18, R: 522, T: 48, CR: 50 };
 {
   const { L, R, T, CR } = WALL;
   seg(L + CR, T, R - CR, T);
   arc(L + CR, T + CR, CR, Math.PI, 1.5 * Math.PI, 6);
   arc(R - CR, T + CR, CR, 1.5 * Math.PI, 2 * Math.PI, 6);
-  seg(L, T + CR, L, 700); seg(R, T + CR, R, 700);
-  seg(L, 700, 118, 818); seg(R, 700, 422, 818);              // guias até os flippers
-  seg(238, 892, 238, 935); seg(302, 892, 302, 935);          // bolso do lançador
-  seg(238, 935, 302, 935, { e: .05 });
+  seg(L, T + CR, L, 470); seg(R, T + CR, R, 470);
+  seg(L, 470, 104, 584, { rail: 'guide' }); seg(R, 470, 436, 584, { rail: 'guide' });   // guias até os flippers
+  seg(235, 655, 235, 700, { rail: 'pocket' }); seg(305, 655, 305, 700, { rail: 'pocket' });   // bolso do lançador
+  seg(235, 700, 305, 700, { e: .05 });
 }
 
 export const flippers = [
-  { s: 1, px: 135, py: 835, L: 108, a: .42, rest: .42, up: -.5, w: 0, held: false },
-  { s: -1, px: 405, py: 835, L: 108, a: .42, rest: .42, up: -.5, w: 0, held: false }
+  { s: 1, px: 125, py: 600, L: 118, a: .42, rest: .42, up: -.5, w: 0, held: false },
+  { s: -1, px: 415, py: 600, L: 118, a: .42, rest: .42, up: -.5, w: 0, held: false }
 ];
 export const FLIP_R = 11;
 export function flipTip(f) { return [f.px + f.s * f.L * Math.cos(f.a), f.py + f.L * Math.sin(f.a)]; }
