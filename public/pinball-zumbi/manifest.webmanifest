@@ -1,16 +1,26 @@
 {
-  "name": "Pinball vs Zumbis: Merge TD",
-  "short_name": "Pinball Zumbis",
-  "description": "Pinball, defesa de plantas e fusão. Use os flippers para acertar as plantas e destruir os zumbis.",
+  "name": "Felipe vs Zumbi: Pinball 3D",
+  "short_name": "Felipe vs Zumbi",
+  "description": "Pinball 3D com defesa de plantas, fusão e chefões.",
   "lang": "pt-BR",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0b1f16",
-  "theme_color": "#12331f",
+  "background_color": "#06140b",
+  "theme_color": "#0b2a14",
   "icons": [
-    {"src":"assets/icones/icone-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
-    {"src":"assets/icones/icone-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+    {
+      "src": "assets/icones/icone-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "assets/icones/icone-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }
