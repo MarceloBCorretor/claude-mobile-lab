@@ -1,7 +1,7 @@
 // Carrega os sprites da Fase 1 (recortados da folha de referência) e prepara variações (cores, brilhos, ícones).
 const BASE = 'assets/fase1/';
 export const POSES = ['frente', '34e', '34d', 'andando', 'dano', 'comendo'];
-const NAMES = ['fundo.webp', ...POSES.map(p => 'zumbi_' + p), 'atirador', 'gelo', 'cereja', 'girassol', 'pneu', 'lixeira', 'lixeira2', 'barreira', 'flipper', 'lancador', 'marcador', 'semente', 'arvore'];
+const NAMES = ['fundo.webp', ...POSES.map(p => 'zumbi_' + p), 'atirador', 'gelo', 'cereja', 'girassol', 'lixeira', 'lixeira2', 'barreira', 'flipper', 'lancador', 'marcador', 'semente', 'arvore'];
 
 function load(name) {
   return new Promise((res, rej) => {

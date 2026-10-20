@@ -177,9 +177,6 @@ export function createRenderer(canvas, A) {
       const pg = ctx.createRadialGradient(bx - 4 * s, by - 6 * s, s, bx, by - 2 * s, 14 * s); pg.addColorStop(0, '#f4f8ff'); pg.addColorStop(.5, '#8fa6d8'); pg.addColorStop(1, '#34457a');
       ctx.fillStyle = pg; ctx.strokeStyle = '#1c2a55'; ctx.lineWidth = Math.max(1, 1.5 * s); ctx.beginPath(); ctx.roundRect(bx - 10 * s * sq, by - 14 * s, 20 * s * sq, 17 * s, 5 * s); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#4fb8ff'; ctx.beginPath(); ctx.ellipse(bx, by - 14 * s, 10 * s * sq, 4 * s, 0, 0, 7); ctx.fill(); ctx.strokeStyle = '#1c2a55'; ctx.stroke();
-    } else if (o.k === 'tire') {
-      shadow(o.x, o.y + 14, 30, 10, .32);
-      sprite(I.pneu, o.x, o.y + 20, 78, false, { sq: [1 + .14 * o.hit, 1 - .12 * o.hit] });
     }
   }
 
