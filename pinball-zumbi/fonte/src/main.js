@@ -17,7 +17,8 @@ let R = null, A = null;            // renderizador e sprites (depois do carregam
 let state = 'menu';                // menu | play | paused | over
 let scenIdx = 0, G = {};
 const ball = { x: POCKET.x, y: POCKET.rest, vx: 0, vy: 0, active: false, r: BR, kind: 'main' };
-const balls = [ball];                    // bolinha principal + sementes extras (cada uma calculada de forma independente)
+const balls = [ball];
+const rollovers = [];                  // luzes de piso da fase                    // bolinha principal + sementes extras (cada uma calculada de forma independente)
 const pendSeeds = [];                    // sementes ainda caindo da árvore
 const slots = [], zombies = [], shots = [], obstacles = [], parts = [], trail = [];
 const input = { kL: false, kR: false, ptrs: new Map(), charging: false, charge: 0, aim: 0, drag: null, armed: null };
@@ -232,6 +233,7 @@ const hooks = {
   onObstacle(o, b) {
     o.hit = 1; if (o.k === 'tree') treeHit(o, b); bump(o.k === 'fountain' ? 4 : 8);
     if (o.k === 'fountain') { drops(b.x, b.y, 12, 150); ripple(o.x, o.y + 14, 80, 'rgb(150,225,255)'); snd(380, .12, 'sine', .05, 1.6); shake = Math.max(shake, .06); }
+    else if (o.k === 'pin') { sparks(b.x, b.y, 6, 'rgb(255,200,90)', 170); snd(980, .05, 'square', .04); shake = Math.max(shake, .05); }
     else if (o.k !== 'tree') { sparks(b.x, b.y, 8, o.k === 'trash' ? 'rgb(90,170,255)' : 'rgb(255,220,160)', 190); snd(o.k === 'trash' ? 700 : 240, .07, o.k === 'trash' ? 'square' : 'sine', .05); shake = Math.max(shake, .08); }
   },
   onPlant(sl, b) { const p = sl.plant; p.hit = 1; bump(4); if (p.cd <= 0 && firePlant(sl)) p.cd = p.type === 'sun' ? .35 : .22; snd(260 + sl.idx * 50, .06, 'sine', .04); },
@@ -247,7 +249,7 @@ const PS = { balls, obstacles, slots, zombies, slotRadius: SR, hooks };
 /* ===================== fluxo da fase ===================== */
 function startGame(si) {
   if (!R) return;
-  scenIdx = si; zombies.length = 0; shots.length = 0; parts.length = 0; slots.length = 0; obstacles.length = 0;
+  scenIdx = si; rollovers.length = 0; (SCEN[si].rollovers || []).forEach(([x, y]) => rollovers.push({ x, y, lit: 0 })); zombies.length = 0; shots.length = 0; parts.length = 0; slots.length = 0; obstacles.length = 0;
   SCEN[si].slots.forEach(([x, y], i) => slots.push({ x, y, plant: null, idx: i }));
   SCEN[si].obstacles.forEach(o => obstacles.push(Object.assign({ hit: 0 }, o)));
   balls.length = 1; pendSeeds.length = 0;
@@ -289,7 +291,7 @@ function update(dt) {
   // bolso do lançador / bola parada / segurança
   if (ball.active) {
     // caiu no lançador: pode ser usada de novo (não perde); caiu fora dele: perde 1 das 10 bolinhas
-    if (ball.y > 880 && Math.abs(ball.x - POCKET.x) < 34) { G.pocketT += dt; if (G.pocketT > .35) { resetBall(); G.combo = 0; note('Bolinha de volta ao lançador', 1200); snd(300, .2, 'sine', .05, .5); } } else G.pocketT = 0;
+    if (ball.y > 876 && Math.abs(ball.x - POCKET.x) < 36) { G.pocketT += dt; if (G.pocketT > .35) { resetBall(); G.combo = 0; note('Bolinha de volta ao lançador', 1200); snd(300, .2, 'sine', .05, .5); } } else G.pocketT = 0;
     if (ball.active && ball.y > 972) { lostBall(); }
     G.stuckT += dt; if (G.stuckT > 1.8) { const moved = Math.hypot(ball.x - (G.sx || 0), ball.y - (G.sy || 0)); G.sx = ball.x; G.sy = ball.y; G.stuckT = 0; if (moved < 40 && ball.y < 860) { ball.vy = -750; ball.vx = (Math.random() - .5) * 500; } }
     if (ball.active && !(ball.x > -20 && ball.x < 560 && ball.y > -40)) { lostBall(); }
@@ -306,6 +308,12 @@ function update(dt) {
     if (b.stuckT > 1.8) { const moved = Math.hypot(b.x - b.sx, b.y - b.sy); b.sx = b.x; b.sy = b.y; b.stuckT = 0; if (moved < 40) { b.vy = -650; b.vx = (Math.random() - .5) * 420; } }
   }
   for (const o of obstacles) if (o.shakeT !== undefined) o.shakeT += dt;
+  // luzes de piso: ao acender as 3, bônus de pontos
+  for (const r of rollovers) {
+    r.lit = Math.max(0, r.lit - dt);
+    if (r.lit <= 0) for (const b of balls) if (b.active && Math.hypot(b.x - r.x, b.y - r.y) < b.r + 4) { r.lit = 6; addScore(10); snd(900, .06, 'sine', .04); sparks(r.x, r.y, 5, 'rgb(255,224,102)', 90); break; }
+  }
+  if (rollovers.length && rollovers.every(r => r.lit > 0)) { addScore(150); G.coins += 15; note('LUZES ACESAS! +150 pontos +15 moedas', 1800); snd(784, .12, 'triangle', .07); setTimeout(() => snd(1047, .2, 'triangle', .07), 110); rollovers.forEach(r => { r.lit = 0; ripple(r.x, r.y, 50, 'rgb(255,224,102)'); }); }
   if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
   if (G.gold > 0) G.gold -= dt;
   for (const o of obstacles) o.hit = Math.max(0, o.hit - dt * 5);
@@ -326,7 +334,7 @@ function update(dt) {
   }
   if (G.wave === 0 || G.clear) { G.between -= dt; if (G.between <= 0) startWave(); }
   // zumbis
-  const blockers = obstacles.map(o => [o.x, o.y, o.r]);
+  const blockers = obstacles.map(o => [o.x, o.y, o.zr || o.r + 8]);
   for (let i = zombies.length - 1; i >= 0; i--) {
     const z = zombies[i]; if (z.dead) { zombies.splice(i, 1); continue; }
     z.ph += dt * (z.eating ? 15 : z.type === 'runner' ? 11 : 6.5); z.flash = Math.max(0, z.flash - dt); z.stun = Math.max(0, z.stun - dt);
@@ -346,7 +354,17 @@ function update(dt) {
       } else { z.y += z.sp * k * dt; z.x += Math.sin(z.ph * .25 + z.wander) * 14 * dt; if (z.y < 360) z.x += Math.sign(z.dest - z.x) * Math.min(Math.abs(z.dest - z.x), 40 * dt); }
     }
     z.slow = Math.max(0, z.slow - dt);
-    for (const [bx, by, br] of blockers) { const dx = z.x - bx, dy = z.y - by, d = Math.hypot(dx, dy) || 1, m = br + z.r + 8; if (d < m) { z.x += dx / d * 120 * dt + (dx === 0 ? 40 * dt : 0); z.y += Math.max(0, dy / d) * 40 * dt; } }
+    // obstáculos são sólidos para os zumbis: eles contornam a fonte, a árvore, o pneu, as lixeiras e os pinos
+    for (const [bx, by, br] of blockers) {
+      let dx = z.x - bx, dy = z.y - by, d = Math.hypot(dx, dy); if (d < .01) { dx = 1; dy = 0; d = 1; }
+      const m = br + z.r * .55;
+      if (d < m) {
+        const nx = dx / d, ny = dy / d; z.x = bx + nx * m; z.y = by + ny * m;                       // nunca fica por cima
+        const wx = z.target ? z.target.x - z.x : 0, wy = z.target ? z.target.y - z.y : 1;           // lado mais perto do destino
+        const sgn = Math.sign(-ny * wx + nx * wy) || (nx >= 0 ? 1 : -1);
+        z.x += -ny * sgn * 70 * dt; z.y += nx * sgn * 70 * dt;                                        // desliza ao redor
+      }
+    }
     z.x = Math.min(WALL.R - z.r - 4, Math.max(WALL.L + z.r + 4, z.x));
     if (z.y >= DANGER) { leak(z); zombies.splice(i, 1); if (state !== 'play') return; }
   }
@@ -359,7 +377,7 @@ function update(dt) {
   }
 }
 
-const view = { balls: 10, t: 0, ball, ballList: balls, pend: pendSeeds, trail, gold: false, charge: 0, danger: false, slots, obstacles, zombies, shots, parts, armedOk: null, hot: -1, shake: 0, ballReady: true, dragIdx: -1, dragGhost: null };
+const view = { rollovers, balls: 10, t: 0, ball, ballList: balls, pend: pendSeeds, trail, gold: false, charge: 0, danger: false, slots, obstacles, zombies, shots, parts, armedOk: null, hot: -1, shake: 0, ballReady: true, dragIdx: -1, dragGhost: null };
 function draw() {
   if (!R) return;
   view.aim = input.aim; view.goldFlash = G.goldFlash || 0; if (G.goldFlash > 0) G.goldFlash = Math.max(0, G.goldFlash - .03); view.t = performance.now() / 1000; view.gold = G.gold > 0; view.charge = input.charge; view.danger = zombies.some(z => !z.dead && z.y > DANGER - 130);
@@ -502,4 +520,4 @@ toMenu();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('service-worker.js').catch(() => {});
 
 // gancho de teste (usado nos testes automatizados)
-window.PZ = { obstacles, balls, addScore, leak, lostBall, end: endGame, step: dt => update(dt), start: startGame, launch, buy, slots, zombies, ball, flippers, input, view, get R() { return R; }, get G() { return G; }, get state() { return state; }, frame: () => { draw(); hud(); } };
+window.PZ = { rollovers, obstacles, balls, addScore, leak, lostBall, end: endGame, step: dt => update(dt), start: startGame, launch, buy, slots, zombies, ball, flippers, input, view, get R() { return R; }, get G() { return G; }, get state() { return state; }, frame: () => { draw(); hud(); } };

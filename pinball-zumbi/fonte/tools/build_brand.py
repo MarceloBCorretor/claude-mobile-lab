@@ -26,6 +26,9 @@ mk = Image.new('RGB', (512, 512), gold); art = icon.resize((400, 400), Image.LAN
 ap = Image.new('RGB', (180, 180), gold); a2 = icon.resize((180, 180), Image.LANCZOS); ap.paste(a2, (0, 0), a2); ap.save(os.path.join(G, 'assets/icones/apple-touch-icon.png'), optimize=True)
 for n in (32, 48): icon.resize((n, n), Image.LANCZOS).save(os.path.join(G, f'assets/icones/favicon-{n}.png'), optimize=True)
 icon.resize((64, 64), Image.LANCZOS).save(os.path.join(G, 'favicon.ico'), sizes=[(16, 16), (32, 32), (48, 48), (64, 64)])
+# imagem de compartilhamento QUADRADA (WhatsApp/Facebook mostram o ícone inteiro, sem cortar)
+sq = Image.new('RGB', (600, 600), (255, 182, 26)); ic = icon.resize((600, 600), Image.LANCZOS); sq.paste(ic, (0, 0), ic)
+sq.save(os.path.join(G, 'assets/ui/og-icone.jpg'), quality=88)
 # imagem de compartilhamento 1200x630: ícone à esquerda, título à direita
 bgimg = Image.open(os.path.join(G, 'assets/fase1/fundo.webp')).convert('RGB')
 Wd, Hd = 1200, 630

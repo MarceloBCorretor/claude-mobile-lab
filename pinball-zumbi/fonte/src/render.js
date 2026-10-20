@@ -1,8 +1,8 @@
 import { W, H, BR, DANGER, LAUNCHER, SR, LVLCOL, TYPES, SCEN, POCKET, TREE } from './config.js';
-import { flippers } from './physics.js';
+import { flippers, FLIP_R, FLIP_R_TIP } from './physics.js';
 
 // Tamanhos de desenho em unidades lógicas (540 x 960)
-const ZW = 64, FLIP_LEN = 110, POCKET_Y = 880;     // FLIP_LEN: distância entre os dois botões verdes do flipper (a ponta física passa um pouco dela)
+const ZW = 64, POCKET_Y = 870;
 
 export function createRenderer(canvas, A) {
   const ctx = canvas.getContext('2d'), I = A.img, bg = I.fundo;
@@ -56,11 +56,30 @@ export function createRenderer(canvas, A) {
     if (oy + h < ch) { ctx.save(); ctx.translate(0, oy + h); ctx.scale(1, -1); ctx.drawImage(bg, 0, 0, iw, 20, ox, -(ch - oy - h), w, ch - oy - h + 1); ctx.restore(); ctx.drawImage(bg, 0, ih - 12, iw, 12, ox, oy + h - 2, w, 3); }
   }
 
-  function drawFlipper(f, i) {
-    const img = I.flipper, kn = A.flipKnobs[0], k = FLIP_LEN / (A.flipKnobs[1][0] - kn[0]);
+  function flipPath(L, r0, r1) { // contorno afunilado: círculo grande no pivô, círculo pequeno na ponta
+    const a = Math.asin((r0 - r1) / L), c = Math.cos(a), sn = Math.sin(a);
+    ctx.beginPath();
+    ctx.arc(0, 0, r0 * s, Math.PI / 2 + a, 3 * Math.PI / 2 - a, false);
+    ctx.lineTo(L * s - 0, -r1 * s * 1); ctx.arc(L * s, 0, r1 * s, -Math.PI / 2 + a, Math.PI / 2 - a, false);
+    ctx.closePath();
+  }
+  function drawFlipper(f) {
+    const L = f.L, r0 = FLIP_R, r1 = FLIP_R_TIP, held = f.held;
     ctx.save(); ctx.translate(X(f.px), Y(f.py)); if (f.s === -1) ctx.scale(-1, 1); ctx.rotate(f.a);
-    ctx.drawImage(img, -kn[0] * k * s, -kn[1] * k * s, img.width * k * s, img.height * k * s);
-    if (f.held) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .28; ctx.drawImage(img, -kn[0] * k * s, -kn[1] * k * s, img.width * k * s, img.height * k * s); }
+    // sombra no chão
+    ctx.save(); ctx.translate(2 * s, 12 * s); ctx.fillStyle = 'rgba(0,0,0,.28)'; flipPath(L, r0, r1); ctx.fill(); ctx.restore();
+    // lateral escura (espessura)
+    ctx.save(); ctx.translate(0, 9 * s); ctx.fillStyle = '#4a2c0e'; flipPath(L, r0, r1); ctx.fill(); ctx.strokeStyle = '#2a1608'; ctx.lineWidth = Math.max(1, 1.6 * s); ctx.stroke(); ctx.restore();
+    // tampo dourado
+    const g = ctx.createLinearGradient(0, -r0 * s, 0, r0 * s); g.addColorStop(0, '#ffe58a'); g.addColorStop(.45, '#f5b52a'); g.addColorStop(1, '#c8861a');
+    ctx.fillStyle = g; flipPath(L, r0, r1); ctx.fill(); ctx.strokeStyle = '#6b3d0a'; ctx.lineWidth = Math.max(1, 1.8 * s); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.ellipse(L * .5 * s, -r0 * .35 * s, L * .38 * s, r0 * .16 * s, 0, 0, 7); ctx.fill();
+    if (held) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .3; ctx.fillStyle = '#fff2b0'; flipPath(L, r0, r1); ctx.fill(); ctx.restore(); }
+    // botões verdes (pivô e perto da ponta)
+    for (const [bx, br] of [[0, 10], [L * .8, 7]]) {
+      const kg = ctx.createRadialGradient((bx - 2) * s, -2.5 * s, s, bx * s, 0, br * s); kg.addColorStop(0, '#b9ffc0'); kg.addColorStop(.5, '#2fe05a'); kg.addColorStop(1, '#0a8a2a');
+      ctx.fillStyle = kg; ctx.strokeStyle = '#0a4a18'; ctx.lineWidth = Math.max(1, 1.3 * s); ctx.beginPath(); ctx.arc(bx * s, 0, br * s, 0, 7); ctx.fill(); ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -151,6 +170,13 @@ export function createRenderer(canvas, A) {
       shadow(o.x, o.y + 14, 26, 9, .3);
       glowRing(o.x, o.y + 12, 42, 29, '#3aa0ff', .95 + o.hit * .9, 2.4);
       sprite(o.v === 2 ? I.lixeira2 : I.lixeira, o.x, o.y + 17, o.v === 2 ? 60 : 56, false, { sq: [1 + .12 * o.hit, 1 - .1 * o.hit] });
+    } else if (o.k === 'pin') {
+      shadow(o.x + 2, o.y + 10, 13, 5, .3); glowRing(o.x, o.y + 6, 20, 13, '#4fb8ff', .85 + o.hit * .9, 2);
+      const sq = 1 + .18 * o.hit, bx = X(o.x), by = Y(o.y);
+      ctx.fillStyle = '#3a2410'; ctx.beginPath(); ctx.ellipse(bx, by + 8 * s, 13 * s * sq, 6.5 * s, 0, 0, 7); ctx.fill();
+      const pg = ctx.createRadialGradient(bx - 4 * s, by - 6 * s, s, bx, by - 2 * s, 14 * s); pg.addColorStop(0, '#f4f8ff'); pg.addColorStop(.5, '#8fa6d8'); pg.addColorStop(1, '#34457a');
+      ctx.fillStyle = pg; ctx.strokeStyle = '#1c2a55'; ctx.lineWidth = Math.max(1, 1.5 * s); ctx.beginPath(); ctx.roundRect(bx - 10 * s * sq, by - 14 * s, 20 * s * sq, 17 * s, 5 * s); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#4fb8ff'; ctx.beginPath(); ctx.ellipse(bx, by - 14 * s, 10 * s * sq, 4 * s, 0, 0, 7); ctx.fill(); ctx.strokeStyle = '#1c2a55'; ctx.stroke();
     } else if (o.k === 'tire') {
       shadow(o.x, o.y + 14, 30, 10, .32);
       sprite(I.pneu, o.x, o.y + 20, 78, false, { sq: [1 + .14 * o.hit, 1 - .12 * o.hit] });
@@ -224,7 +250,7 @@ export function createRenderer(canvas, A) {
     // lançador
     const pull = st.charge * 7;
     shadow(270, LAUNCHER.y + 45, 40, 9, .3);
-    sprite(I.lancador, LAUNCHER.x, LAUNCHER.y + 45 + pull * .4, 66, false);
+    sprite(I.lancador, LAUNCHER.x, LAUNCHER.y + 45 + pull * .4, 82, false);
     glowSpot(270, LAUNCHER.y - 12 + pull, 26, '255,215,80', (st.ballReady ? .22 + .12 * Math.sin(t * 6) : .05) + st.charge * .45);
     if (st.charge > 0 || st.aim) { // direção do lançamento (pontos luminosos)
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -239,6 +265,9 @@ export function createRenderer(canvas, A) {
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(X(px - 14), Y(py), 7 * s, 0, 7); ctx.fill();
       ctx.fillStyle = low ? '#ff9a8a' : '#fff'; ctx.font = `900 ${Math.round(14 * s)}px system-ui,sans-serif`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('×' + st.balls, X(px - 3), Y(py) + s * .5);
     }
+    // luzes de piso (rollovers) e pinos defletores
+    for (const r of st.rollovers) { const on = r.lit > 0, p2 = .5 + .5 * Math.sin(t * 5 + r.x); glowRing(r.x, r.y, 20, 11, on ? '#ffe066' : '#6bffa0', on ? 1 : .5 + .25 * p2, 2.2);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = on ? 'rgba(255,214,70,.55)' : 'rgba(80,255,140,.14)'; ctx.beginPath(); ctx.ellipse(X(r.x), Y(r.y), 14 * s, 7.5 * s, 0, 0, 7); ctx.fill(); ctx.restore(); }
     // plataformas dos poderes
     st.slots.forEach((sl, i) => drawPadBase(sl, t, st, i));
     for (const o of st.obstacles) if (o.k === 'fountain') drawFountainFx(o, t, st);

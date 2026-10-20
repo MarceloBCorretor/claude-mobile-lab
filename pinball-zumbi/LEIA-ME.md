@@ -32,4 +32,4 @@ Ferramentas em `fonte/tools/`:
 Endereço do jogo no servidor: `fonte/site.config.json` (`baseUrl`). A imagem de compartilhamento do WhatsApp precisa do
 endereço completo, então se subir em outra pasta, altere o `baseUrl` e rode `npm run build` (ou edite as linhas `og:` do `index.html`).
 
-A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v7` para `v8`...).
+A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v8` para `v9`...).

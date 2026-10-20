@@ -22,10 +22,10 @@ export const POCKET_L = 240, POCKET_R = 300;
 
 // Flippers: pivôs perto do centro e braço longo, para a bolinha que desce pelo meio ser rebatida
 export const flippers = [
-  { s: 1, px: 100, py: 872, L: 122, a: .28, rest: .28, up: -.55, w: 0, held: false },
-  { s: -1, px: 440, py: 872, L: 122, a: .28, rest: .28, up: -.55, w: 0, held: false }
+  { s: 1, px: 100, py: 872, L: 136, a: .28, rest: .28, up: -.55, w: 0, held: false },
+  { s: -1, px: 440, py: 872, L: 136, a: .28, rest: .28, up: -.55, w: 0, held: false }
 ];
-export const FLIP_R = 11;
+export const FLIP_R = 23, FLIP_R_TIP = 13;     // espessura do flipper: larga no pivô e afunilada na ponta (formato clássico)
 export function flipTip(f) { return [f.px + f.s * f.L * Math.cos(f.a), f.py + f.L * Math.sin(f.a)]; }
 
 function surfaceVel(f, px, py) {
@@ -37,7 +37,7 @@ function collideSeg(b, s, f) {
   let t = ((b.x - s.x1) * dx + (b.y - s.y1) * dy) / l2; t = t < 0 ? 0 : t > 1 ? 1 : t;
   const px = s.x1 + dx * t, py = s.y1 + dy * t;
   let nx = b.x - px, ny = b.y - py, d = Math.hypot(nx, ny);
-  const R = b.r + s.r;
+  const R = b.r + (s.r1 !== undefined ? s.r + (s.r1 - s.r) * t : s.r);
   if (d >= R) return false;
   if (d < 1e-6) { nx = -dy; ny = dx; d = Math.hypot(nx, ny) || 1; }
   nx /= d; ny /= d; b.x += nx * (R - d); b.y += ny * (R - d);
@@ -77,7 +77,7 @@ export function stepPhysics(dt, S) {
       for (const s of segs) collideSeg(b, s, null);
       for (const f of flippers) {
         const t = flipTip(f);
-        if (collideSeg(b, { x1: f.px, y1: f.py, x2: t[0], y2: t[1], r: FLIP_R, e: .25 }, f) && Math.abs(f.w) > 3) S.hooks.onFlipper(f);
+        if (collideSeg(b, { x1: f.px, y1: f.py, x2: t[0], y2: t[1], r: FLIP_R, r1: FLIP_R_TIP, e: .3 }, f) && Math.abs(f.w) > 3) S.hooks.onFlipper(f);
       }
       for (const o of S.obstacles) if (collideCirc(b, o, o.e || .9, o.kick)) S.hooks.onObstacle(o, b);
       b.ins = b.ins || {};
