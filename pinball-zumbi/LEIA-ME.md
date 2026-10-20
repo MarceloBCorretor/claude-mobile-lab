@@ -1,4 +1,4 @@
-# Felipe vs Zumbi: Pinball (Fase 1, versão 2.5D com arte de referência)
+# Felipe vs Zumbi: Pinball (Fase 1, versão 1c)
 
 Fase 1 (Jardim da Fonte) montada com o **fundo fixo** e os **itens exatos** das imagens de referência:
 cada item (zumbi, plantas, lixeira, pneu, barreira, flippers, lançador) é um sprite recortado da folha de itens,
@@ -24,7 +24,12 @@ cd fonte
 npm install        (só na primeira vez)
 npm run build      (gera ../game.js e ../index.html)
 ```
-Os sprites foram gerados por `fonte/tools/build_assets.py` a partir das imagens de referência
-(18, 19 e 20). Para refazer: `python3 fonte/tools/build_assets.py <pasta_das_referencias> assets/fase1`.
+Ferramentas em `fonte/tools/`:
+- `build_assets.py <referencias> <pasta_do_jogo>`: recorta sprites e retratos do Felipe da folha (24.webp) e usa o fundo (25.webp)
+- `build_brand.py <pasta_do_jogo>`: ícones do app e imagem de compartilhamento (WhatsApp)
+- `build_sw.py <pasta_do_jogo> <versao>`: lista de arquivos do modo offline (service worker)
 
-A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v5` para `v6`...).
+Endereço do jogo no servidor: `fonte/site.config.json` (`baseUrl`). A imagem de compartilhamento do WhatsApp precisa do
+endereço completo, então se subir em outra pasta, altere o `baseUrl` e rode `npm run build` (ou edite as linhas `og:` do `index.html`).
+
+A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v6` para `v7`...).

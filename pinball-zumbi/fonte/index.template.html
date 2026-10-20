@@ -5,6 +5,18 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <meta name="theme-color" content="#0b2a14">
 <meta name="description" content="Felipe vs Zumbi: pinball com defesa de plantas, fusão e chefões.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Felipe vs Zumbi">
+<meta property="og:title" content="Felipe vs Zumbi | Pinball">
+<meta property="og:description" content="Pinball com defesa de plantas, fusão e chefões. Jogue com o Felipe!">
+<meta property="og:url" content="{{BASE_URL}}">
+<meta property="og:image" content="{{BASE_URL}}assets/ui/og-felipe.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{{BASE_URL}}assets/ui/og-felipe.jpg">
+<link rel="apple-touch-icon" href="assets/icones/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
@@ -29,6 +41,9 @@ canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-ac
 #stat{display:grid;gap:.9cqw}
 #hearts{display:flex;gap:.9cqw}
 .heart{width:5cqw;height:5cqw;filter:drop-shadow(0 .3cqw .3cqw #0008)}
+#hearts .plus{font-size:3.6cqw;font-weight:1000;color:#ff8a98;align-self:center;margin-left:.2cqw}
+#hearts.pop{animation:hp .7s ease-out}
+@keyframes hp{0%{transform:scale(1)}30%{transform:scale(1.35);filter:drop-shadow(0 0 2cqw #ff3b4e)}100%{transform:scale(1)}}
 #coinrow{display:flex;align-items:center;gap:1.4cqw;background:#0b1218;border-radius:4cqw;padding:.4cqw 2.4cqw .4cqw .6cqw}
 .coin{width:5cqw;height:5cqw;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3a0,#ffc61a 55%,#c98a08);border:.4cqw solid #8a5a08;display:inline-block;flex:none;box-shadow:inset 0 0 0 .4cqw #ffe47a66}
 #coins{font-weight:1000;font-size:5cqw;color:#ffe066;font-variant-numeric:tabular-nums;text-shadow:0 .3cqw 0 #5a3a05}
@@ -59,7 +74,7 @@ canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-ac
 .card:active{transform:translateY(.4cqw)}
 .pea{--c:#58e05a;--c2:#2a8a2e}.ice{--c:#4fb8ff;--c2:#1d63b8}.bomb{--c:#ff5a5a;--c2:#9e1f2a}.sun{--c:#ffd34a;--c2:#b07a0c}
 /* zonas de vidro das alavancas (visuais; o toque vale em cada metade da tela) */
-.gz{position:absolute;z-index:3;pointer-events:none;bottom:calc(env(safe-area-inset-bottom) + 20.5cqw);width:30cqw;height:21cqw;border-radius:5cqw;
+.gz{position:absolute;z-index:3;pointer-events:none;bottom:calc(env(safe-area-inset-bottom) + 18.8cqw);width:30cqw;height:16cqw;border-radius:5cqw;
   background:linear-gradient(160deg,#ffffff22,#ffffff08 60%,#ffffff12);border:.45cqw solid #ffffff38;box-shadow:inset 0 .4cqw 0 #ffffff30;backdrop-filter:blur(1.5px);transition:background .08s,box-shadow .08s;display:grid;place-items:center}
 .gz svg{width:8cqw;opacity:.5}
 #gzL{left:1.4cqw}#gzR{right:1.4cqw}
@@ -76,6 +91,7 @@ canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-ac
 .hot{position:absolute;border-radius:5cqw;background:transparent}
 .hot:active{background:#ffffff33}
 .hot:disabled{opacity:.5}
+.exitm{position:absolute;right:3.5cqw;top:calc(env(safe-area-inset-top) + 3cqw);padding:1.6cqw 3.6cqw;border-radius:4cqw;background:#0008;border:.4cqw solid #ffffff55;font-weight:800;font-size:3.4cqw;color:#fff}
 #hJogar{left:19%;top:66%;width:62%;height:12.5%}
 #hPers{left:8%;top:79.5%;width:27.5%;height:11%}
 #hCen{left:36%;top:79.5%;width:28%;height:11%}
@@ -120,11 +136,12 @@ canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-ac
   <section class="screen on" id="menu" aria-label="Menu principal">
     <div id="menuBest"></div>
     <button class="hot" id="hJogar" aria-label="Jogar"></button><button class="hot" id="hPers" aria-label="Personagens"></button>
-    <button class="hot" id="hCen" aria-label="Cenários"></button><button class="hot" id="hSom" aria-label="Som"></button>
+    <button class="hot" id="hCen" aria-label="Cenários"></button><button class="hot" id="hSom" aria-label="Som"></button><button id="bExitM" class="exitm" aria-label="Sair do jogo">Sair</button>
   </section>
   <section class="screen modalbg" id="levels"><div class="box"><h2>Cenários</h2><div id="lvList"></div><button class="btn g" data-go="menu">Voltar</button></div></section>
   <section class="screen modalbg" id="chars"><div class="box"><h2>Personagens</h2><img class="sheet" src="assets/ui/personagens.webp" alt="Guia dos personagens"><button class="btn g" data-go="menu">Voltar</button></div></section>
-  <section class="screen modalbg" id="pause"><div class="box"><h2>Pausado</h2><button class="btn" id="bResume">CONTINUAR</button><button class="btn g" id="bRestart">Reiniciar fase</button><button class="btn g" id="bQuit">Sair para o menu</button></div></section>
+  <section class="screen modalbg" id="pause"><div class="box"><h2>Pausado</h2><button class="btn" id="bResume">CONTINUAR</button><button class="btn g" id="bRestart">Reiniciar fase</button><button class="btn g" id="bQuit">Menu principal</button><button class="btn g" id="bExitP">Sair do jogo</button></div></section>
+  <section class="screen modalbg" id="exit"><div class="box"><h2>Sair do jogo?</h2><p>Seu recorde fica salvo.</p><button class="btn" id="exitStay">CONTINUAR JOGANDO</button><button class="btn g" id="exitGo">Sair do jogo</button><p id="exitMsg" style="font-size:3.4cqw;margin:3cqw 0 0"></p></div></section>
   <section class="screen modalbg" id="result"><div class="box"><h2 id="resTitle"></h2><div class="stars" id="resStars"></div><p id="resTxt"></p><button class="btn" id="resMain"></button><button class="btn g" id="resMenu">Menu</button></div></section>
   <div id="noGL"><div>Este aparelho não conseguiu abrir o jogo.</div></div>
 </div>

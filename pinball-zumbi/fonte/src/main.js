@@ -1,7 +1,7 @@
 import { createRenderer } from './render.js';
 import { loadAssets } from './assets.js';
 import { stepPhysics, flippers, WALL } from './physics.js';
-import { SCEN, PLAN, TYPES, ORDER, DMG, MAXLVL, DANGER, SR, POCKET, LAUNCHER, VIEW, WAVES_PER_SCEN, SPAWN_Y, PLANT_HP, PLANT_DECAY, BITE, SEEK_RANGE, priceFor } from './config.js';
+import { SCEN, PLAN, TYPES, ORDER, DMG, MAXLVL, DANGER, SR, POCKET, LAUNCHER, VIEW, WAVES_PER_SCEN, SPAWN_Y, PLANT_HP, PLANT_DECAY, BITE, SEEK_RANGE, BALLS_PER_PHASE, HEART_EVERY, MAX_LIVES, LAST_WAVE_LEAKS_PER_LIFE, priceFor } from './config.js';
 import { snd, vib, isMuted, setMuted, unlockAudio } from './audio.js';
 
 const $ = id => document.getElementById(id);
@@ -21,7 +21,9 @@ const slots = [], zombies = [], shots = [], obstacles = [], parts = [], trail = 
 const input = { kL: false, kR: false, ptrs: new Map(), charging: false, charge: 0, aim: 0, drag: null, armed: null };
 let hotSlot = -1, felipe = { mood: '', until: 0, prio: 0 }, lastFace = '', shake = 0, noteUntil = 0, tagUntil = 0, ghost = null, dragIdx = -1;
 
-const FACES = {}; for (const m of ['feliz', 'triste', 'assustado', 'concentrado', 'vitoria', 'upiii']) { const i = new Image(); i.src = `assets/felipe/${m}.webp`; FACES[m] = i.src; }
+// retratos da folha de referência (feliz, neutro, empolgado, triste, vitória); "assustado" e "concentrado" usam o neutro
+const FACE_FILES = { feliz: 'feliz', concentrado: 'neutro', assustado: 'neutro', triste: 'triste', vitoria: 'vitoria', upiii: 'empolgado' };
+const FACES = {}; for (const m in FACE_FILES) { const i = new Image(); i.src = `assets/felipe/${FACE_FILES[m]}.webp`; FACES[m] = i.src; }
 function setFelipe(mood, dur, prio) { const n = performance.now(); if (n < felipe.until && prio < felipe.prio) return; felipe = { mood, until: n + dur * 1000, prio }; }
 function faceNow() {
   if (performance.now() < felipe.until) return felipe.mood;
@@ -34,9 +36,9 @@ const heartSVG = on => `<svg class="heart" viewBox="0 0 32 32"><path d="M16 29 C
 let hudCache = {};
 function hud() {
   const c = hudCache;
-  if (c.lives !== G.lives) { $('hearts').innerHTML = [0, 1, 2].map(i => heartSVG(i < G.lives)).join(''); c.lives = G.lives; }
+  if (c.lives !== G.lives) { $('hearts').innerHTML = [0, 1, 2].map(i => heartSVG(i < G.lives)).join('') + (G.lives > 3 ? `<b class="plus">+${G.lives - 3}</b>` : ''); c.lives = G.lives; }
   if (c.coins !== Math.floor(G.coins)) { $('coins').textContent = Math.floor(G.coins); c.coins = Math.floor(G.coins); refreshCards(); }
-  if (c.wave !== G.wave) { $('waveN').textContent = Math.max(1, G.wave); c.wave = G.wave; document.querySelectorAll('.card').forEach(el => { el.querySelector('.pv').textContent = priceFor(el.dataset.t, G.wave); }); refreshCards(); }
+  if (c.wave !== G.wave) { $('waveN').textContent = Math.max(1, G.wave); c.wave = G.wave; refreshCards(); }
   const done = G.killed + G.leaked, tot = G.waveTotal;
   const k = done + '/' + tot; if (c.z !== k) { $('zcount').textContent = 'ZUMBIS ' + k; $('barf').style.width = (tot ? 100 * done / tot : 0) + '%'; c.z = k; }
   const f = faceNow(); if (f !== lastFace) { $('face').src = FACES[f]; lastFace = f; }
@@ -49,10 +51,10 @@ function hud() {
 }
 function buildCards() {
   if (!A) return;
-  $('footer').innerHTML = ORDER.map(t => `<button class="card ${t}" data-t="${t}" aria-label="${TYPES[t].name}"><img class="ic" src="${A.icons[t]}" alt=""><span class="tx"><span class="nm">${TYPES[t].name}</span><span class="pr"><i class="coin"></i><b class="pv">${priceFor(t, G.wave || 1)}</b></span></span></button>`).join('');
+  $('footer').innerHTML = ORDER.map(t => `<button class="card ${t}" data-t="${t}" aria-label="${TYPES[t].name}"><img class="ic" src="${A.icons[t]}" alt=""><span class="tx"><span class="nm">${TYPES[t].name}</span><span class="pr"><i class="coin"></i><b class="pv">${priceFor(t, scenIdx)}</b></span></span></button>`).join('');
   document.querySelectorAll('.card').forEach(el => el.addEventListener('pointerdown', e => startCardDrag(e, el.dataset.t)));
 }
-function refreshCards() { document.querySelectorAll('.card').forEach(el => el.classList.toggle('off', G.coins < priceFor(el.dataset.t, G.wave))); }
+function refreshCards() { document.querySelectorAll('.card').forEach(el => { el.querySelector('.pv').textContent = priceFor(el.dataset.t, scenIdx); el.classList.toggle('off', G.coins < priceFor(el.dataset.t, scenIdx)); }); }
 function note(t, ms) { const e = $('note'); e.textContent = t; e.className = 'on'; noteUntil = performance.now() + (ms || 1800); }
 const toast = t => note(t, 1500);
 function floatText(x, y, txt, color, big) {
@@ -84,7 +86,7 @@ function updateParts(dt) {
 }
 
 /* ===================== plantas ===================== */
-const spriteOf = t => ({ pea: A.img.atirador, ice: A.img.gelo_frente, bomb: A.img.cereja_frente, sun: A.img.girassol_frente }[t]);
+const spriteOf = t => ({ pea: A.img.atirador, ice: A.img.gelo, bomb: A.img.cereja, sun: A.img.girassol }[t]);
 function healPlant(p) { p.maxhp = PLANT_HP[p.lvl]; p.hp = p.maxhp; }
 function placePlant(sl, type, lvl) { sl.plant = { type, lvl, cd: 0, auto: 2.5 + Math.random() * 1.5, hit: 0 }; healPlant(sl.plant); }
 function plantDies(sl) {
@@ -99,7 +101,7 @@ function mergeFx(sl) {
 // Compra num local: vazio instala; mesma planta sobe 1 nível (fusão). Preço = base x 1,2^(onda-1), cobrado na hora.
 function buy(type, sl) {
   if (!sl) return false;
-  const cost = priceFor(type, G.wave);
+  const cost = priceFor(type, scenIdx);
   if (sl.plant && (sl.plant.type !== type || sl.plant.lvl >= MAXLVL)) { floatText(sl.x, sl.y, sl.plant.lvl >= MAXLVL ? 'Nível máximo' : 'Local ocupado', '#ff8a8a'); snd(150, .12, 'square', .05); return false; }
   if (G.coins < cost) { floatText(sl.x, sl.y, 'Sem moedas', '#ff8a8a'); snd(150, .15, 'square', .05); return false; }
   G.coins -= cost; G.spent = (G.spent || 0) + cost;
@@ -148,7 +150,7 @@ function hurt(z, d, slow) {
   if (z.hp <= 0) killZombie(z);
 }
 function killZombie(z) {
-  z.dead = true; G.killed++; G.coins += z.coin; G.score += z.pts;
+  z.dead = true; G.killed++; G.coins += z.coin; addScore(z.pts);
   const big = z.type === 'boss';
   cubes(z.x, z.y - 30, big ? 40 : 15, ZPAL, big ? 240 : 170, big ? 12 : 8); sparks(z.x, z.y - 30, 12, 'rgb(190,255,130)', 180); ripple(z.x, z.y, big ? 110 : 60, 'rgb(182,255,122)');
   shake = Math.max(shake, big ? .9 : .3);
@@ -156,35 +158,56 @@ function killZombie(z) {
   tag(G.combo >= 3 ? 'COMBO!' : 'UPIII!'); setFelipe('upiii', 1.3, 2);
 }
 function tag(t) { $('tag').textContent = t; tagUntil = performance.now() + 1100; }
-function leak(z) {
-  z.dead = true; G.leaked++; cubes(z.x, z.y - 20, 10, ZPAL, 130, 7);
+function loseLife(why) {
   G.lives--; $('vig').classList.add('on'); setTimeout(() => $('vig').classList.remove('on'), 80);
   shake = Math.max(shake, .7); vib(160); snd(120, .4, 'sawtooth', .08, .4); setFelipe('triste', 1.8, 3);
-  if (G.lives <= 0) endGame(false); else note('Um zumbi passou · vidas ' + G.lives);
+  if (G.lives <= 0) endGame(false, why || 'Acabaram as vidas do Felipe.'); else note('Perdeu um coração · vidas ' + G.lives, 2000);
+}
+function leak(z) {
+  z.dead = true; G.leaked++; cubes(z.x, z.y - 20, 10, ZPAL, 130, 7);
+  if (z.type === 'boss') { G.lives = 0; shake = 1; vib(200); endGame(false, 'O zumbi gigante passou pela barreira!'); return; }
+  if (G.wave === WAVES_PER_SCEN) { // última onda: 2 zumbis na barreira = 1 coração
+    G.leakHalf = (G.leakHalf || 0) + 1; shake = Math.max(shake, .5); vib(80); snd(150, .25, 'sawtooth', .07, .5);
+    if (G.leakHalf >= LAST_WAVE_LEAKS_PER_LIFE) { G.leakHalf = 0; loseLife('Zumbis demais passaram pela barreira.'); } else note('Cuidado! Mais 1 zumbi e perde um coração', 2000);
+    return;
+  }
+  loseLife('Zumbis demais passaram pela barreira.');
 }
 
 /* ===================== bola ===================== */
 function resetBall() { Object.assign(ball, { x: POCKET.x, y: POCKET.rest, vx: 0, vy: 0, active: false }); input.charge = 0; trail.length = 0; G.pocketT = 0; G.stuckT = 0; }
 function launch() {
   if (state !== 'play' || ball.active) { input.charge = 0; return; }
-  const v = 900 + 600 * input.charge; ball.vy = -v; ball.vx = input.aim * 260 + (Math.random() - .5) * 20; ball.active = true; input.charge = 0; input.aim = 0; G.pocketT = 0;
+  const v = 1000 + 560 * input.charge; ball.vy = -v; ball.vx = input.aim * 260 + (Math.random() - .5) * 20; ball.active = true; input.charge = 0; input.aim = 0; G.pocketT = 0;
   snd(200, .3, 'sawtooth', .06, 3); vib(25);
 }
+function addScore(pts) {
+  G.score += pts;
+  while (G.score >= G.nextHeart) {
+    G.nextHeart += HEART_EVERY;
+    if (G.lives < MAX_LIVES) { G.lives++; note('+1 VIDA · ' + G.nextHeart.toLocaleString('pt-BR') + ' pts para o próximo', 2200); vib(40); snd(880, .12, 'triangle', .07); setTimeout(() => snd(1175, .2, 'triangle', .07), 110); tag('+1 VIDA'); setFelipe('upiii', 1.2, 2); const h = $('hearts'); h.classList.remove('pop'); void h.offsetWidth; h.classList.add('pop'); }
+  }
+}
+function lostBall() {
+  G.balls--; G.combo = 0; vib(60); snd(160, .3, 'sawtooth', .06, .4); setFelipe('triste', 1.2, 2); resetBall();
+  if (G.balls <= 0) { endGame(false, 'Acabaram as 10 bolinhas desta fase.'); return; }
+  note(G.balls === 1 ? 'Última bolinha!' : 'Bolinha perdida · restam ' + G.balls, 1800);
+}
 function bump(pts) {
-  G.score += pts; G.combo = G.comboT > 0 ? G.combo + 1 : 1; G.comboT = 1.8;
+  addScore(pts); G.combo = G.comboT > 0 ? G.combo + 1 : 1; G.comboT = 1.8;
   if (G.combo === 3) note('COMBO ×3', 1200); else if (G.combo === 4) note('COMBO ×4', 1200);
   if (G.combo >= 5 && G.gold <= 0) { G.gold = 10; G.combo = 0; G.goldFlash = 1; sparks(ball.x, ball.y, 24, 'rgb(255,210,80)', 300); ripple(ball.x, ball.y, 110, 'rgb(255,210,80)'); note('SEMENTE DOURADA! dano dobrado e tiro triplo', 2200); snd(300, .4, 'sawtooth', .07, 3); vib(80); tag('UPIII!'); setFelipe('upiii', 1.3, 2); }
 }
 const hooks = {
   onObstacle(o) {
-    o.hit = 1; bump(o.k === 'fountain' ? 15 : 25);
+    o.hit = 1; bump(o.k === 'fountain' ? 4 : 8);
     if (o.k === 'fountain') { drops(ball.x, ball.y, 12, 150); ripple(o.x, o.y + 14, 80, 'rgb(150,225,255)'); snd(380, .12, 'sine', .05, 1.6); shake = Math.max(shake, .06); }
     else { sparks(ball.x, ball.y, 8, o.k === 'trash' ? 'rgb(90,170,255)' : 'rgb(255,220,160)', 190); snd(o.k === 'trash' ? 700 : 240, .07, o.k === 'trash' ? 'square' : 'sine', .05); shake = Math.max(shake, .08); }
   },
-  onPlant(sl) { const p = sl.plant; p.hit = 1; bump(10); if (p.cd <= 0 && firePlant(sl)) p.cd = p.type === 'sun' ? .35 : .22; snd(260 + sl.idx * 50, .06, 'sine', .04); },
+  onPlant(sl) { const p = sl.plant; p.hit = 1; bump(4); if (p.cd <= 0 && firePlant(sl)) p.cd = p.type === 'sun' ? .35 : .22; snd(260 + sl.idx * 50, .06, 'sine', .04); },
   onZombie(z, speed) {
     if (z.hitCd > 0) return;
-    z.hitCd = .25; z.stun = .3; z.y -= 12; bump(15);
+    z.hitCd = .25; z.stun = .3; z.y -= 12; bump(6);
     hurt(z, (1 + speed / 520) * (G.gold > 0 ? 2 : 1), false); sparks(ball.x, ball.y, 6, 'rgb(255,255,255)', 160); shake = Math.max(shake, .12); snd(240, .06, 'square', .05);
   },
   onFlipper() { const n = performance.now(); if (n - (G.flipVib || 0) > 140) { G.flipVib = n; vib(12); } }
@@ -197,26 +220,26 @@ function startGame(si) {
   scenIdx = si; zombies.length = 0; shots.length = 0; parts.length = 0; slots.length = 0; obstacles.length = 0;
   SCEN[si].slots.forEach(([x, y], i) => slots.push({ x, y, plant: null, idx: i }));
   SCEN[si].obstacles.forEach(o => obstacles.push(Object.assign({ hit: 0 }, o)));
-  G = { coins: 150 + si * 40, score: 0, lives: 3, wave: 0, toSpawn: 0, spawnT: 0, interval: 2, between: 2.2, clear: false, waveTotal: 0, killed: 0, leaked: 0, combo: 0, comboT: 0, gold: 0, t: 0, pocketT: 0, stuckT: 0 };
+  G = { coins: 150 + si * 40, score: 0, nextHeart: HEART_EVERY, balls: BALLS_PER_PHASE, leakHalf: 0, lives: 3, wave: 0, toSpawn: 0, spawnT: 0, interval: 2, between: 2.2, clear: false, waveTotal: 0, killed: 0, leaked: 0, combo: 0, comboT: 0, gold: 0, t: 0, pocketT: 0, stuckT: 0 };
   hudCache = {}; input.armed = null; hotSlot = -1; dragIdx = -1; ghost = null; resetBall(); felipe = { mood: '', until: 0, prio: 0 };
   showScreen(null); state = 'play'; note('FASE ' + (si + 1) + ' · ' + SCEN[si].name, 2200); setFelipe('feliz', 2, 1);
   buildCards(); hud(); layout();
 }
 function startWave() {
   G.wave++; const n = G.wave, si = scenIdx;
-  G.toSpawn = 4 + 2 * n + 2 * si + (n === WAVES_PER_SCEN ? 1 : 0); G.waveTotal = G.toSpawn; G.killed = 0; G.leaked = 0;
+  G.toSpawn = 4 + 2 * n + 2 * si + (n === WAVES_PER_SCEN ? 1 : 0); G.waveTotal = G.toSpawn; G.killed = 0; G.leaked = 0; G.leakHalf = 0;
   G.interval = Math.max(1.2, 3.2 - .25 * n - .2 * si); G.spawnT = 1.2; G.clear = false;
-  note('ONDA ' + n + (n === WAVES_PER_SCEN ? ' · chefão a caminho' : ' · zumbis chegando'), 2200);
+  note('ONDA ' + n + (n === WAVES_PER_SCEN ? ' · chefão a caminho · 2 zumbis = 1 coração' : ' · zumbis chegando'), 2400);
 }
-function endGame(win) {
+function endGame(win, why) {
   state = 'over'; input.ptrs.clear(); input.charging = false;
-  const stars = win ? Math.max(1, G.lives) : 0;
+  const stars = win ? Math.min(3, Math.max(1, G.lives)) : 0;
   if (win) save.stars[scenIdx] = Math.max(save.stars[scenIdx] || 0, stars);
   save.best = Math.max(save.best, G.score); persist();
   setFelipe(win ? 'vitoria' : 'triste', 60, 3); $('face').src = FACES[win ? 'vitoria' : 'triste']; lastFace = win ? 'vitoria' : 'triste';
   $('resTitle').textContent = win ? 'FASE COMPLETA!' : 'FIM DE JOGO';
   $('resStars').innerHTML = win ? '★'.repeat(stars) + '<s>' + '★'.repeat(3 - stars) + '</s>' : '';
-  $('resTxt').textContent = (win ? 'Você defendeu o ' + SCEN[scenIdx].name + '! As próximas fases chegam em breve.' : 'Os zumbis passaram pela barreira.') + ' Pontos: ' + G.score;
+  $('resTxt').textContent = (win ? 'Você defendeu o ' + SCEN[scenIdx].name + '! As próximas fases chegam em breve.' : (why || 'Os zumbis passaram pela barreira.')) + ' Pontos: ' + G.score;
   $('resMain').textContent = win ? 'JOGAR DE NOVO' : 'TENTAR DE NOVO';
   $('resMain').onclick = () => startGame(scenIdx);
   setTimeout(() => { if (state === 'over') showScreen('result'); }, win ? 1200 : 700);
@@ -234,10 +257,12 @@ function update(dt) {
   stepPhysics(dt, PS);
   // bolso do lançador / bola parada / segurança
   if (ball.active) {
-    if (ball.y > 762 && ball.x > 232 && ball.x < 308) { G.pocketT += dt; if (G.pocketT > .45) { resetBall(); G.combo = 0; snd(300, .2, 'sine', .05, .5); } } else G.pocketT = 0;
-    G.stuckT += dt; if (G.stuckT > 1.8) { const moved = Math.hypot(ball.x - (G.sx || 0), ball.y - (G.sy || 0)); G.sx = ball.x; G.sy = ball.y; G.stuckT = 0; if (moved < 40 && ball.y < 744) { ball.vy = -750; ball.vx = (Math.random() - .5) * 500; } }
-    if (!(ball.x > 0 && ball.x < 540 && ball.y > 0 && ball.y < 850)) { resetBall(); toast('Bola de volta ao lançador'); }
-    trail.push(ball.x, ball.y); if (trail.length > 24) trail.splice(0, 2);
+    // caiu no lançador: pode ser usada de novo (não perde); caiu fora dele: perde 1 das 10 bolinhas
+    if (ball.y > 895 && ball.x > 236 && ball.x < 304) { G.pocketT += dt; if (G.pocketT > .45) { resetBall(); G.combo = 0; note('Bolinha de volta ao lançador', 1200); snd(300, .2, 'sine', .05, .5); } } else G.pocketT = 0;
+    if (ball.y > 972) { lostBall(); }
+    G.stuckT += dt; if (G.stuckT > 1.8) { const moved = Math.hypot(ball.x - (G.sx || 0), ball.y - (G.sy || 0)); G.sx = ball.x; G.sy = ball.y; G.stuckT = 0; if (moved < 40 && ball.y < 860) { ball.vy = -750; ball.vx = (Math.random() - .5) * 500; } }
+    if (!(ball.x > -20 && ball.x < 560 && ball.y > -40)) { lostBall(); }
+    if (ball.active) { trail.push(ball.x, ball.y); if (trail.length > 24) trail.splice(0, 2); }
   } else { ball.x = POCKET.x; ball.y = POCKET.rest; if (trail.length) trail.length = 0; }
   if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
   if (G.gold > 0) G.gold -= dt;
@@ -253,7 +278,7 @@ function update(dt) {
   // ondas
   if (G.toSpawn > 0) { G.spawnT -= dt; if (G.spawnT <= 0) { G.spawnT = G.interval * (.75 + Math.random() * .5); G.toSpawn--; spawnZombie(G.toSpawn === 0 && G.wave === WAVES_PER_SCEN); } }
   else if (!G.clear && G.wave > 0 && zombies.every(z => z.dead)) {
-    G.clear = true; G.between = 3.4; const bonus = 40 + 10 * G.wave; G.coins += bonus; G.score += 500;
+    G.clear = true; G.between = 3.4; const bonus = 40 + 10 * G.wave; G.coins += bonus; addScore(300);
     if (G.wave >= WAVES_PER_SCEN) { endGame(true); return; }
     note('ONDA ' + G.wave + ' COMPLETA · +' + bonus + ' moedas', 2200); setFelipe('vitoria', 2.2, 2); snd(660, .35, 'triangle', .07, 1.5);
   }
@@ -286,18 +311,18 @@ function update(dt) {
   // tiros
   for (let i = shots.length - 1; i >= 0; i--) {
     const s = shots[i]; s.x += s.vx * dt; s.y += s.vy * dt;
-    let gone = s.y < 90 || s.y > 800 || s.x < 10 || s.x > 530;
+    let gone = s.y < 90 || s.y > 790 || s.x < 10 || s.x > 530;
     if (!gone) for (const z of zombies) if (!z.dead && Math.hypot(z.x - s.x, z.y - 16 - s.y) < z.r + 14) { hurt(z, s.dmg, s.slow); sparks(s.x, s.y, 5, s.slow ? 'rgb(150,220,255)' : 'rgb(170,255,110)', 120); snd(300, .04, 'square', .03); gone = true; break; }
     if (gone) shots.splice(i, 1);
   }
 }
 
-const view = { t: 0, ball, trail, gold: false, charge: 0, danger: false, slots, obstacles, zombies, shots, parts, armedOk: null, hot: -1, shake: 0, ballReady: true, dragIdx: -1, dragGhost: null };
+const view = { balls: 10, t: 0, ball, trail, gold: false, charge: 0, danger: false, slots, obstacles, zombies, shots, parts, armedOk: null, hot: -1, shake: 0, ballReady: true, dragIdx: -1, dragGhost: null };
 function draw() {
   if (!R) return;
   view.aim = input.aim; view.goldFlash = G.goldFlash || 0; if (G.goldFlash > 0) G.goldFlash = Math.max(0, G.goldFlash - .03); view.t = performance.now() / 1000; view.gold = G.gold > 0; view.charge = input.charge; view.danger = zombies.some(z => !z.dead && z.y > DANGER - 130);
   view.armedOk = input.armed ? slots.map(s => !s.plant || (s.plant.type === input.armed && s.plant.lvl < MAXLVL)) : null;
-  view.hot = hotSlot; view.shake = shake; view.ballReady = !ball.active; view.dragIdx = dragIdx; view.dragGhost = ghost;
+  view.balls = G.balls; view.hot = hotSlot; view.shake = shake; view.ballReady = !ball.active; view.dragIdx = dragIdx; view.dragGhost = ghost;
   R.draw(view);
 }
 
@@ -345,7 +370,7 @@ function endDrag(e) {
   if (d.src === 'shop') {
     if (!d.moved && e.type !== 'pointercancel') { // toque simples: arma o poder e mostra os locais
       if (input.armed === d.type) { input.armed = null; }
-      else if (G.coins < priceFor(d.type, G.wave)) { toast('Moedas insuficientes'); snd(150, .15, 'square', .05); }
+      else if (G.coins < priceFor(d.type, scenIdx)) { toast('Moedas insuficientes'); snd(150, .15, 'square', .05); }
       else { input.armed = d.type; toast('Toque num local + para instalar'); snd(500, .06, 'triangle', .05); }
     } else if (target) buy(d.type, target);
   } else moveDrop(d.sl, target);
@@ -355,7 +380,7 @@ window.addEventListener('keydown', e => {
   if (k === 'ArrowLeft' || k === 'z' || k === 'Z') input.kL = true;
   else if (k === 'ArrowRight' || k === 'm' || k === 'M' || k === '/') input.kR = true;
   else if (k === ' ' || k === 'ArrowDown') { input.charging = true; e.preventDefault(); }
-  else if (k === 'p' || k === 'P') togglePause();
+  else if (k === 'p' || k === 'P' || k === 'Escape') onBack();
 });
 window.addEventListener('keyup', e => {
   const k = e.key;
@@ -388,6 +413,27 @@ $('pauseBtn').addEventListener('pointerdown', e => { e.stopPropagation(); toggle
 $('bResume').onclick = togglePause;
 $('bRestart').onclick = () => startGame(scenIdx);
 $('bQuit').onclick = toMenu; $('resMenu').onclick = toMenu;
+$('bExitP').onclick = () => openExit('pause');
+
+/* ===================== botão Voltar do celular: nunca fecha o jogo ===================== */
+let exitFrom = 'menu';
+function openExit(from) { exitFrom = from; $('exitMsg').textContent = ''; showScreen('exit'); }
+function closeExit() { showScreen(exitFrom === 'pause' ? 'pause' : 'menu'); }
+function doExit() { // o navegador só deixa fechar abas abertas pelo próprio jogo; senão, orienta o jogador
+  try { window.close(); } catch (e) {}
+  setTimeout(() => { $('exitMsg').textContent = 'Para sair, use o botão Início do celular ou feche esta aba. Seu progresso fica salvo.'; }, 250);
+}
+$('exitStay').onclick = closeExit; $('exitGo').onclick = doExit; $('bExitM').onclick = () => openExit('menu');
+function onBack() {
+  const cur = (document.querySelector('.screen.on') || {}).id;
+  if (state === 'play') togglePause();
+  else if (cur === 'exit') closeExit();
+  else if (state === 'paused') togglePause();
+  else if (cur === 'menu') openExit('menu');
+  else toMenu();
+}
+try { history.replaceState({ pz: 0 }, ''); history.pushState({ pz: 1 }, ''); } catch (e) {}
+window.addEventListener('popstate', () => { try { history.pushState({ pz: 1 }, ''); } catch (e) {} onBack(); });
 
 /* ===================== laço principal ===================== */
 function layout() {
@@ -414,4 +460,4 @@ toMenu();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('service-worker.js').catch(() => {});
 
 // gancho de teste (usado nos testes automatizados)
-window.PZ = { end: endGame, step: dt => update(dt), start: startGame, launch, buy, slots, zombies, ball, flippers, input, view, get R() { return R; }, get G() { return G; }, get state() { return state; }, frame: () => { draw(); hud(); } };
+window.PZ = { addScore, leak, lostBall, end: endGame, step: dt => update(dt), start: startGame, launch, buy, slots, zombies, ball, flippers, input, view, get R() { return R; }, get G() { return G; }, get state() { return state; }, frame: () => { draw(); hud(); } };

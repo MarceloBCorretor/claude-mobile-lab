@@ -1,8 +1,8 @@
-import { W, H, BR, DANGER, LAUNCHER, SR, LVLCOL, TYPES, SCEN } from './config.js';
+import { W, H, BR, DANGER, LAUNCHER, SR, LVLCOL, TYPES, SCEN, POCKET } from './config.js';
 import { flippers } from './physics.js';
 
 // Tamanhos de desenho em unidades lógicas (540 x 960)
-const ZW = 64, FLIP_LEN = 132, POCKET_Y = 779;
+const ZW = 64, FLIP_LEN = 104, POCKET_Y = 880;
 
 export function createRenderer(canvas, A) {
   const ctx = canvas.getContext('2d'), I = A.img, bg = I.fundo;
@@ -14,7 +14,7 @@ export function createRenderer(canvas, A) {
   function setLayout(hudBottom, footerTop, view) {
     const sW = cw / W, sV = (footerTop - hudBottom) / (view.bottom - view.top);
     s = Math.min(sW, sV); ox = (cw - W * s) / 2;
-    oy = hudBottom + ((footerTop - hudBottom) - (view.bottom - view.top) * s) / 2 - view.top * s;
+    oy = footerTop - view.bottom * s;           // a base do fundo encosta no rodapé; o que sobra em cima é preenchido
   }
   const toLogical = (cx, cy) => { const r = canvas.getBoundingClientRect(); return [(cx - r.left - ox) / s, (cy - r.top - oy) / s]; };
   const toScreen = (x, y) => [X(x), Y(y)];
@@ -31,19 +31,29 @@ export function createRenderer(canvas, A) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(X(x), Y(y), r * s, 0, 7); ctx.fill(); ctx.restore();
   }
   function sprite(img, x, bottom, w, flip, extra) {
-    const k = w * s / img.width, h = img.height * k;
+    const k = w * s / img.width, h = extra && extra.h ? extra.h * s : img.height * k;
     ctx.save(); ctx.translate(X(x), Y(bottom)); if (extra && extra.rot) ctx.rotate(extra.rot); if (flip) ctx.scale(-1, 1);
     if (extra && extra.sq) ctx.scale(extra.sq[0], extra.sq[1]);
     ctx.drawImage(img, -w * s / 2, -h, w * s, h); ctx.restore(); return h / s;
   }
 
   function drawBackground() {
-    ctx.fillStyle = '#244f27'; ctx.fillRect(0, 0, cw, ch);
-    const iw = bg.width, ih = bg.height, w = W * s, h = H * s;
-    if (oy > 0) ctx.drawImage(bg, 0, 0, iw, 22, ox, 0, w, oy + 1);
-    if (oy + h < ch) ctx.drawImage(bg, 0, ih - 22, iw, 22, ox, oy + h - 1, w, ch - (oy + h) + 2);
-    if (ox > 0) { ctx.drawImage(bg, 0, 0, 10, ih, 0, oy, ox + 1, h); ctx.drawImage(bg, iw - 10, 0, 10, ih, ox + w - 1, oy, ox + 2, h); }
+    ctx.fillStyle = '#2d6a2d'; ctx.fillRect(0, 0, cw, ch);
+    const iw = bg.width, ih = bg.height, w = W * s, h = H * s, k = w / iw;
+    // faixas laterais e de cima/baixo: o próprio fundo espelhado (as árvores continuam inteiras, sem esticar)
+    const strip = Math.min(iw * .22, 200);
+    for (let side = -1; side <= 1; side += 2) {
+      let x = side < 0 ? ox : ox + w, flip = true;
+      while (side < 0 ? x > -2 : x < cw + 2) {
+        const sw = strip * k, dx = side < 0 ? x - sw : x;
+        ctx.save(); ctx.translate(dx + (flip ? sw : 0), 0); ctx.scale(flip ? -1 : 1, 1);
+        ctx.drawImage(bg, side < 0 ? 0 : iw - strip, 0, strip, ih, 0, oy, sw, h); ctx.restore();
+        x += side * sw; flip = !flip;
+      }
+    }
     ctx.drawImage(bg, ox, oy, w, h);
+    if (oy > 0) { ctx.save(); ctx.translate(0, oy); ctx.scale(1, -1); ctx.drawImage(bg, 0, 0, iw, Math.min(ih, oy / k + 1), ox, 0, w, Math.min(h, oy + 1)); ctx.restore(); }
+    if (oy + h < ch) { ctx.save(); ctx.translate(0, oy + h); ctx.scale(1, -1); ctx.drawImage(bg, 0, 0, iw, 20, ox, -(ch - oy - h), w, ch - oy - h + 1); ctx.restore(); ctx.drawImage(bg, 0, ih - 12, iw, 12, ox, oy + h - 2, w, 3); }
   }
 
   function drawFlipper(f, i) {
@@ -71,22 +81,28 @@ export function createRenderer(canvas, A) {
     ctx.strokeStyle = 'rgba(20,28,34,.65)'; ctx.lineWidth = Math.max(1, r * .07); ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.stroke();
   }
 
+  function poseOf(z) {
+    if (z.flash > 0) return ['dano', false];
+    if (z.eating) return ['comendo', false];
+    const f = Math.floor(z.ph / Math.PI) & 3;
+    return f === 0 ? ['andando', false] : f === 1 ? ['frente', false] : f === 2 ? ['andando', true] : ['frente', false];
+  }
   function drawZombie(z, t) {
     const mul = z.type === 'boss' ? 1.75 : z.type === 'runner' ? .9 : 1, w = ZW * mul;
-    const f = Math.floor(z.ph / Math.PI) & 3, base = (f & 1) ? 'zumbi_34' : 'zumbi_frente', flip = f === 3;
-    let img = I[base];
-    if (z.type === 'runner') img = A.tint[base + '_runner']; else if (z.type === 'boss') img = A.tint[base + '_boss'];
-    const bob = Math.abs(Math.sin(z.ph)) * 3, fade = Math.max(0, Math.min(1, (z.y - 100) / 34 + .15));
+    const [pose, flip] = poseOf(z);
+    let img = I['zumbi_' + pose];
+    if (z.type === 'runner') img = A.runner[pose]; else if (z.type === 'boss') img = A.boss[pose];
+    const bob = z.eating ? 0 : Math.abs(Math.sin(z.ph)) * 3, fade = Math.max(0, Math.min(1, (z.y - 112) / 34 + .15));
     shadow(z.x, z.y + 2, 21 * mul, 7 * mul, .28 * fade);
     ctx.save(); ctx.globalAlpha = fade;
     const sq = z.dying ? [1 + z.dying * .2, 1 - z.dying * .3] : null;
-    const rot = Math.sin(z.ph) * (z.eating ? .13 : .05), lunge = z.eating ? Math.abs(Math.sin(z.ph)) * 4 : 0;
+    const rot = z.eating ? Math.sin(z.ph) * .06 : Math.sin(z.ph) * .04, lunge = z.eating ? Math.abs(Math.sin(z.ph)) * 3 : 0;
     const hgt = sprite(img, z.x, z.y + 6 - bob + lunge, w, flip, { rot, sq });
-    if (z.flash > 0) { ctx.globalAlpha = Math.min(1, z.flash * 7) * fade; sprite(A.flash[base + '_white'], z.x, z.y + 6 - bob + lunge, w, flip, { rot }); }
-    if (z.slow > 0) { ctx.globalAlpha = .75 * fade; sprite(A.flash[base + '_blue'], z.x, z.y + 6 - bob + lunge, w, flip, { rot }); }
+    if (z.flash > 0) { ctx.globalAlpha = Math.min(.8, z.flash * 6) * fade; sprite(A.white[pose], z.x, z.y + 6 - bob + lunge, w, flip, { rot }); }
+    if (z.slow > 0) { ctx.globalAlpha = .75 * fade; sprite(A.blue[pose], z.x, z.y + 6 - bob + lunge, w, flip, { rot }); }
     ctx.globalAlpha = fade;
     if (z.type === 'cone') { // cone de trânsito na cabeça
-      const cx = X(z.x), top = Y(z.y + 6 - bob - hgt) + hgt * s * .1, cwid = w * .36 * s, chh = w * .52 * s;
+      const cx = X(z.x), top = Y(z.y + 6 - bob - hgt) + hgt * s * .08, cwid = w * .3 * s, chh = w * .46 * s;
       ctx.fillStyle = '#f08a24'; ctx.strokeStyle = '#7a3d08'; ctx.lineWidth = Math.max(1, s * 1.6); ctx.beginPath(); ctx.moveTo(cx - cwid, top + chh * .15); ctx.lineTo(cx, top - chh); ctx.lineTo(cx + cwid, top + chh * .15); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(cx - cwid * .68, top - chh * .25); ctx.lineTo(cx + cwid * .68, top - chh * .25); ctx.lineTo(cx + cwid * .46, top - chh * .55); ctx.lineTo(cx - cwid * .46, top - chh * .55); ctx.closePath(); ctx.fill();
     }
@@ -101,11 +117,11 @@ export function createRenderer(canvas, A) {
   }
 
   function drawPlant(sl, t, st) {
-    const p = sl.plant, key = { pea: 'atirador', ice: 'gelo_frente', bomb: 'cereja_frente', sun: 'girassol_frente' }[p.type];
-    const wmap = { pea: 64, ice: 72, bomb: 68, sun: 70 }, k = 1 + .06 * (p.lvl - 1), h = p.hit;
+    const p = sl.plant, key = { pea: 'atirador', ice: 'gelo', bomb: 'cereja', sun: 'girassol' }[p.type];
+    const wmap = { pea: 66, ice: 66, bomb: 70, sun: 68 }, k = 1 + .06 * (p.lvl - 1), h = p.hit;
     const sq = [1 + .16 * h, 1 - .14 * h], bob = Math.sin(t * 2.4 + sl.idx) * 1.6;
     shadow(sl.x, sl.y + 14, 25, 9, .3);
-    sprite(I[key] || A.img[key], sl.x, sl.y + 16 + bob, wmap[p.type] * k, false, { sq });
+    sprite(I[key], sl.x, sl.y + 16 + bob, wmap[p.type] * k, false, { sq });
     // barra de vida (a planta perde vida com o tempo e quando os zumbis a comem)
     const fr = Math.max(0, p.hp / p.maxhp), bw = 38 * s, bx = X(sl.x) - bw / 2, by = Y(sl.y + 30);
     ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(bx - s, by - s, bw + 2 * s, 6 * s);
@@ -120,13 +136,13 @@ export function createRenderer(canvas, A) {
   function drawPadBase(sl, t, st, i) {
     const p = sl.plant, col = p ? TYPES[p.type].ring : '#9dffb0', pulse = .5 + .5 * Math.sin(t * 4 + i);
     const armed = st.armedOk && st.armedOk[i], hot = st.hot === i;
-    ctx.fillStyle = 'rgba(6,36,16,.5)'; ctx.beginPath(); ctx.ellipse(X(sl.x), Y(sl.y + 12), 40 * s, 27 * s, 0, 0, 7); ctx.fill();
-    const a = p ? .95 + .05 * pulse : .75 + .25 * pulse;
-    glowRing(sl.x, sl.y + 12, 40 * (hot ? 1.1 : 1), 27 * (hot ? 1.1 : 1), armed || hot ? '#ffffff' : col, armed || hot ? 1 : a, 2.6);
-    if (p && p.lvl >= 2) glowRing(sl.x, sl.y + 12, 46, 31, LVLCOL[p.lvl], .75, 1.6);
-    if (!p) { // sinal de +
-      ctx.save(); ctx.globalAlpha = armed ? 1 : .55 + .25 * pulse; ctx.strokeStyle = armed ? '#ffffff' : '#c9ffd2'; ctx.lineCap = 'round'; ctx.lineWidth = 4 * s;
-      ctx.beginPath(); ctx.moveTo(X(sl.x - 9), Y(sl.y + 12)); ctx.lineTo(X(sl.x + 9), Y(sl.y + 12)); ctx.moveTo(X(sl.x), Y(sl.y + 12 - 7)); ctx.lineTo(X(sl.x), Y(sl.y + 12 + 7)); ctx.stroke(); ctx.restore();
+    if (!p) { // marcador de posicionamento (sprite da referência)
+      ctx.save(); ctx.globalAlpha = armed || hot ? 1 : .82 + .18 * pulse; sprite(I.marcador, sl.x, sl.y + 14 + 26 * (hot ? 1.04 : 1), 84 * (hot ? 1.06 : 1), false); ctx.restore();
+      if (armed || hot) glowRing(sl.x, sl.y + 14, 44, 29, '#ffffff', 1, 2.4);
+    } else {
+      ctx.fillStyle = 'rgba(6,36,16,.5)'; ctx.beginPath(); ctx.ellipse(X(sl.x), Y(sl.y + 12), 40 * s, 27 * s, 0, 0, 7); ctx.fill();
+      glowRing(sl.x, sl.y + 12, 40 * (hot ? 1.1 : 1), 27 * (hot ? 1.1 : 1), armed || hot ? '#ffffff' : col, armed || hot ? 1 : .95 + .05 * pulse, 2.6);
+      if (p.lvl >= 2) glowRing(sl.x, sl.y + 12, 46, 31, LVLCOL[p.lvl], .75, 1.6);
     }
   }
 
@@ -134,10 +150,10 @@ export function createRenderer(canvas, A) {
     if (o.k === 'trash') {
       shadow(o.x, o.y + 14, 26, 9, .3);
       glowRing(o.x, o.y + 12, 42, 29, '#3aa0ff', .95 + o.hit * .9, 2.4);
-      sprite(I.lixeira, o.x, o.y + 17, 58, false, { sq: [1 + .12 * o.hit, 1 - .1 * o.hit] });
+      sprite(o.v === 2 ? I.lixeira2 : I.lixeira, o.x, o.y + 17, o.v === 2 ? 60 : 56, false, { sq: [1 + .12 * o.hit, 1 - .1 * o.hit] });
     } else if (o.k === 'tire') {
       shadow(o.x, o.y + 14, 30, 10, .32);
-      sprite(I.pneu, o.x, o.y + 21, 62, false, { sq: [1 + .14 * o.hit, 1 - .12 * o.hit] });
+      sprite(I.pneu, o.x, o.y + 20, 78, false, { sq: [1 + .14 * o.hit, 1 - .12 * o.hit] });
     }
   }
 
@@ -183,18 +199,26 @@ export function createRenderer(canvas, A) {
     for (let i = 0; i < sc.lamps.length; i++) glowSpot(sc.lamps[i][0], sc.lamps[i][1], 46, '255,190,80', .34 + .1 * Math.sin(t * 2.2 + i * 1.7));
     // barreira de aviso
     const danger = st.danger, pulse = .5 + .5 * Math.sin(t * 6);
-    shadow(270, 654, 238, 12, .25);
-    sprite(I.barreira, 270, 668, 500, false);
-    if (danger) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,40,30,${.12 + .22 * pulse})`; ctx.fillRect(X(20), Y(616), 500 * s, 52 * s); ctx.restore(); }
+    shadow(270, 796, 226, 11, .25);
+    sprite(I.barreira, 270, 802, 482, false, { h: 74 });
+    if (danger) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = `rgba(255,40,30,${.12 + .22 * pulse})`; ctx.fillRect(X(30), Y(740), 480 * s, 56 * s); ctx.restore(); }
     // lançador
     const pull = st.charge * 7;
     shadow(270, LAUNCHER.y + 45, 40, 9, .3);
-    sprite(I.lancador, LAUNCHER.x, LAUNCHER.y + 45 + pull * .4, 71, false);
-    glowSpot(270, LAUNCHER.y + 12 + pull, 26, '255,215,80', (st.ballReady ? .22 + .12 * Math.sin(t * 6) : .05) + st.charge * .45);
+    sprite(I.lancador, LAUNCHER.x, LAUNCHER.y + 45 + pull * .4, 66, false);
+    glowSpot(270, LAUNCHER.y - 12 + pull, 26, '255,215,80', (st.ballReady ? .22 + .12 * Math.sin(t * 6) : .05) + st.charge * .45);
     if (st.charge > 0 || st.aim) { // direção do lançamento (pontos luminosos)
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       for (let i = 1; i <= 7; i++) { const d = i * 24, x = 270 + st.aim * .26 * d * 1, y = POCKET_Y - d; ctx.fillStyle = `rgba(255,214,90,${.75 - i * .09})`; ctx.beginPath(); ctx.arc(X(x), Y(y), (5 - i * .4) * s, 0, 7); ctx.fill(); }
       ctx.restore();
+    }
+    { // bolinhas restantes (10 por fase)
+      const low = st.balls <= 3, px = 338, py = 943, wP = 58, hP = 22;
+      ctx.fillStyle = 'rgba(6,16,12,.72)'; ctx.strokeStyle = low ? 'rgba(255,110,90,.9)' : 'rgba(255,255,255,.35)'; ctx.lineWidth = Math.max(1, s * 1.4);
+      ctx.beginPath(); ctx.roundRect(X(px - wP / 2), Y(py - hP / 2), wP * s, hP * s, hP * s / 2); ctx.fill(); ctx.stroke();
+      const g = ctx.createRadialGradient(X(px - 14) - 2 * s, Y(py) - 2 * s, s, X(px - 14), Y(py), 8 * s); g.addColorStop(0, '#fff'); g.addColorStop(.6, '#9aa6ae'); g.addColorStop(1, '#3c464d');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(X(px - 14), Y(py), 7 * s, 0, 7); ctx.fill();
+      ctx.fillStyle = low ? '#ff9a8a' : '#fff'; ctx.font = `900 ${Math.round(14 * s)}px system-ui,sans-serif`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillText('×' + st.balls, X(px - 3), Y(py) + s * .5);
     }
     // plataformas dos poderes
     st.slots.forEach((sl, i) => drawPadBase(sl, t, st, i));
