@@ -27,4 +27,4 @@ npm run build      (gera ../game.js e ../index.html)
 Os sprites foram gerados por `fonte/tools/build_assets.py` a partir das imagens de referência
 (18, 19 e 20). Para refazer: `python3 fonte/tools/build_assets.py <pasta_das_referencias> assets/fase1`.
 
-A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v4` para `v5`...).
+A cada alteração publicada, aumente a versão em `service-worker.js` (`pinball-zumbi-v5` para `v6`...).

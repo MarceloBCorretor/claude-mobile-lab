@@ -1,7 +1,7 @@
 import { createRenderer } from './render.js';
 import { loadAssets } from './assets.js';
 import { stepPhysics, flippers, WALL } from './physics.js';
-import { SCEN, PLAN, TYPES, ORDER, DMG, MAXLVL, DANGER, SR, POCKET, LAUNCHER, VIEW, WAVES_PER_SCEN, SPAWN_Y, priceFor } from './config.js';
+import { SCEN, PLAN, TYPES, ORDER, DMG, MAXLVL, DANGER, SR, POCKET, LAUNCHER, VIEW, WAVES_PER_SCEN, SPAWN_Y, PLANT_HP, PLANT_DECAY, BITE, SEEK_RANGE, priceFor } from './config.js';
 import { snd, vib, isMuted, setMuted, unlockAudio } from './audio.js';
 
 const $ = id => document.getElementById(id);
@@ -85,7 +85,12 @@ function updateParts(dt) {
 
 /* ===================== plantas ===================== */
 const spriteOf = t => ({ pea: A.img.atirador, ice: A.img.gelo_frente, bomb: A.img.cereja_frente, sun: A.img.girassol_frente }[t]);
-function placePlant(sl, type, lvl) { sl.plant = { type, lvl, cd: 0, auto: 2.5 + Math.random() * 1.5, hit: 0 }; }
+function healPlant(p) { p.maxhp = PLANT_HP[p.lvl]; p.hp = p.maxhp; }
+function placePlant(sl, type, lvl) { sl.plant = { type, lvl, cd: 0, auto: 2.5 + Math.random() * 1.5, hit: 0 }; healPlant(sl.plant); }
+function plantDies(sl) {
+  cubes(sl.x, sl.y - 10, 12, ['#6bbf46', '#2f8a2b', '#9be55a'], 150, 6); sparks(sl.x, sl.y - 10, 8, 'rgb(150,255,120)', 120);
+  floatText(sl.x, sl.y - 24, 'Planta destruída', '#ff9a8a'); snd(120, .25, 'sawtooth', .06, .5); vib(30); sl.plant = null; sl.inside = false;
+}
 function mergeFx(sl) {
   cubes(sl.x, sl.y, 12, ['#ffd24a', '#fff2a0', '#ffffff', '#7fe3ff'], 150, 6); sparks(sl.x, sl.y, 14, 'rgb(255,230,120)', 200); ripple(sl.x, sl.y + 12, 70, 'rgb(255,226,122)');
   floatText(sl.x, sl.y - 20, 'NÍVEL ' + sl.plant.lvl + '!', '#fff', true); snd(520, .12, 'triangle', .07);
@@ -99,14 +104,14 @@ function buy(type, sl) {
   if (G.coins < cost) { floatText(sl.x, sl.y, 'Sem moedas', '#ff8a8a'); snd(150, .15, 'square', .05); return false; }
   G.coins -= cost; G.spent = (G.spent || 0) + cost;
   if (!sl.plant) { placePlant(sl, type, 1); cubes(sl.x, sl.y, 8, ['#6bbf46', '#9be55a'], 110, 5); sparks(sl.x, sl.y, 10, 'rgb(150,255,120)', 160); ripple(sl.x, sl.y + 12, 64, TYPES[type].ring); snd(400, .1, 'triangle', .06); }
-  else { sl.plant.lvl++; mergeFx(sl); }
+  else { sl.plant.lvl++; healPlant(sl.plant); mergeFx(sl); }
   floatText(sl.x, sl.y - 34, '-' + cost, '#ffd24a'); return true;
 }
 function moveDrop(fromSl, toSl) {
-  if (!toSl || toSl === fromSl) return;
+  if (!toSl || toSl === fromSl || !fromSl.plant) return;
   const a = fromSl.plant;
   if (!toSl.plant) { toSl.plant = a; fromSl.plant = null; snd(330, .06, 'triangle', .05); }
-  else if (toSl.plant.type === a.type && toSl.plant.lvl === a.lvl && a.lvl < MAXLVL) { fromSl.plant = null; toSl.plant.lvl++; mergeFx(toSl); }
+  else if (toSl.plant.type === a.type && toSl.plant.lvl === a.lvl && a.lvl < MAXLVL) { fromSl.plant = null; toSl.plant.lvl++; healPlant(toSl.plant); mergeFx(toSl); }
   else { const b = toSl.plant; toSl.plant = a; fromSl.plant = b; snd(330, .06, 'triangle', .05); }
 }
 function nearestSlot(lx, ly, maxD) { let best = null, bd = maxD; for (const s of slots) { const d = Math.hypot(s.x - lx, s.y - ly); if (d < bd) { bd = d; best = s; } } return best; }
@@ -168,7 +173,7 @@ function launch() {
 function bump(pts) {
   G.score += pts; G.combo = G.comboT > 0 ? G.combo + 1 : 1; G.comboT = 1.8;
   if (G.combo === 3) note('COMBO ×3', 1200); else if (G.combo === 4) note('COMBO ×4', 1200);
-  if (G.combo >= 5 && G.gold <= 0) { G.gold = 10; G.combo = 0; note('SEMENTE DOURADA! dano dobrado e tiro triplo', 2200); snd(300, .4, 'sawtooth', .07, 3); vib(80); tag('UPIII!'); setFelipe('upiii', 1.3, 2); }
+  if (G.combo >= 5 && G.gold <= 0) { G.gold = 10; G.combo = 0; G.goldFlash = 1; sparks(ball.x, ball.y, 24, 'rgb(255,210,80)', 300); ripple(ball.x, ball.y, 110, 'rgb(255,210,80)'); note('SEMENTE DOURADA! dano dobrado e tiro triplo', 2200); snd(300, .4, 'sawtooth', .07, 3); vib(80); tag('UPIII!'); setFelipe('upiii', 1.3, 2); }
 }
 const hooks = {
   onObstacle(o) {
@@ -229,9 +234,9 @@ function update(dt) {
   stepPhysics(dt, PS);
   // bolso do lançador / bola parada / segurança
   if (ball.active) {
-    if (ball.y > 718 && ball.x > 232 && ball.x < 308) { G.pocketT += dt; if (G.pocketT > .45) { resetBall(); G.combo = 0; snd(300, .2, 'sine', .05, .5); } } else G.pocketT = 0;
-    G.stuckT += dt; if (G.stuckT > 1.8) { const moved = Math.hypot(ball.x - (G.sx || 0), ball.y - (G.sy || 0)); G.sx = ball.x; G.sy = ball.y; G.stuckT = 0; if (moved < 40 && ball.y < 700) { ball.vy = -750; ball.vx = (Math.random() - .5) * 500; } }
-    if (!(ball.x > 0 && ball.x < 540 && ball.y > 0 && ball.y < 800)) { resetBall(); toast('Bola de volta ao lançador'); }
+    if (ball.y > 762 && ball.x > 232 && ball.x < 308) { G.pocketT += dt; if (G.pocketT > .45) { resetBall(); G.combo = 0; snd(300, .2, 'sine', .05, .5); } } else G.pocketT = 0;
+    G.stuckT += dt; if (G.stuckT > 1.8) { const moved = Math.hypot(ball.x - (G.sx || 0), ball.y - (G.sy || 0)); G.sx = ball.x; G.sy = ball.y; G.stuckT = 0; if (moved < 40 && ball.y < 744) { ball.vy = -750; ball.vx = (Math.random() - .5) * 500; } }
+    if (!(ball.x > 0 && ball.x < 540 && ball.y > 0 && ball.y < 850)) { resetBall(); toast('Bola de volta ao lançador'); }
     trail.push(ball.x, ball.y); if (trail.length > 24) trail.splice(0, 2);
   } else { ball.x = POCKET.x; ball.y = POCKET.rest; if (trail.length) trail.length = 0; }
   if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
@@ -242,6 +247,7 @@ function update(dt) {
   // plantas
   for (const sl of slots) if (sl.plant) {
     const p = sl.plant; p.cd -= dt; p.hit = Math.max(0, p.hit - dt * 5); p.auto -= dt;
+    p.hp -= PLANT_DECAY * dt; if (p.hp <= 0) { plantDies(sl); continue; }
     if (p.auto <= 0) { p.auto = 3.2 + Math.random(); if (p.type !== 'sun' || Math.random() < .5) firePlant(sl); }
   }
   // ondas
@@ -253,11 +259,25 @@ function update(dt) {
   }
   if (G.wave === 0 || G.clear) { G.between -= dt; if (G.between <= 0) startWave(); }
   // zumbis
-  const blockers = [...obstacles.map(o => [o.x, o.y, o.r]), ...slots.filter(s => s.plant).map(s => [s.x, s.y, SR])];
+  const blockers = obstacles.map(o => [o.x, o.y, o.r]);
   for (let i = zombies.length - 1; i >= 0; i--) {
     const z = zombies[i]; if (z.dead) { zombies.splice(i, 1); continue; }
-    z.ph += dt * (z.type === 'runner' ? 11 : 6.5); z.flash = Math.max(0, z.flash - dt); z.stun = Math.max(0, z.stun - dt);
-    if (z.stun <= 0) { z.y += z.sp * (z.slow > 0 ? .5 : 1) * dt; z.x += Math.sin(z.ph * .25 + z.wander) * 14 * dt; }
+    z.ph += dt * (z.eating ? 15 : z.type === 'runner' ? 11 : 6.5); z.flash = Math.max(0, z.flash - dt); z.stun = Math.max(0, z.stun - dt);
+    // o zumbi vai atrás da planta mais próxima; ao chegar, para e a come (a planta não resiste)
+    if (!z.target || !z.target.plant) { z.target = null; let bd = SEEK_RANGE; for (const sl of slots) if (sl.plant) { const d = Math.hypot(sl.x - z.x, sl.y - z.y); if (d < bd) { bd = d; z.target = sl; } } }
+    z.eating = false;
+    if (z.stun <= 0) {
+      const k = z.slow > 0 ? .5 : 1;
+      if (z.target && z.y > 115) {
+        const dx = z.target.x - z.x, dy = z.target.y - 8 - z.y, d = Math.hypot(dx, dy) || 1;
+        if (d > 36) { z.x += dx / d * z.sp * 1.1 * k * dt; z.y += dy / d * z.sp * 1.1 * k * dt; }
+        else {
+          z.eating = true; const tp = z.target.plant; tp.hp -= (BITE[z.type] || 16) * k * dt; tp.hit = Math.max(tp.hit, .5); z.biteT = (z.biteT || 0) - dt;
+          if (z.biteT <= 0) { z.biteT = .5; snd(170, .05, 'square', .04); cubes(z.target.x, z.target.y - 14, 2, ['#6bbf46', '#2f8a2b'], 70, 4); }
+          if (tp.hp <= 0) plantDies(z.target);
+        }
+      } else { z.y += z.sp * k * dt; z.x += Math.sin(z.ph * .25 + z.wander) * 14 * dt; }
+    }
     z.slow = Math.max(0, z.slow - dt);
     for (const [bx, by, br] of blockers) { const dx = z.x - bx, dy = z.y - by, d = Math.hypot(dx, dy) || 1, m = br + z.r + 8; if (d < m) { z.x += dx / d * 120 * dt + (dx === 0 ? 40 * dt : 0); z.y += Math.max(0, dy / d) * 40 * dt; } }
     z.x = Math.min(WALL.R - z.r - 4, Math.max(WALL.L + z.r + 4, z.x));
@@ -266,7 +286,7 @@ function update(dt) {
   // tiros
   for (let i = shots.length - 1; i >= 0; i--) {
     const s = shots[i]; s.x += s.vx * dt; s.y += s.vy * dt;
-    let gone = s.y < 90 || s.y > 760 || s.x < 10 || s.x > 530;
+    let gone = s.y < 90 || s.y > 800 || s.x < 10 || s.x > 530;
     if (!gone) for (const z of zombies) if (!z.dead && Math.hypot(z.x - s.x, z.y - 16 - s.y) < z.r + 14) { hurt(z, s.dmg, s.slow); sparks(s.x, s.y, 5, s.slow ? 'rgb(150,220,255)' : 'rgb(170,255,110)', 120); snd(300, .04, 'square', .03); gone = true; break; }
     if (gone) shots.splice(i, 1);
   }
@@ -275,7 +295,7 @@ function update(dt) {
 const view = { t: 0, ball, trail, gold: false, charge: 0, danger: false, slots, obstacles, zombies, shots, parts, armedOk: null, hot: -1, shake: 0, ballReady: true, dragIdx: -1, dragGhost: null };
 function draw() {
   if (!R) return;
-  view.aim = input.aim; view.t = performance.now() / 1000; view.gold = G.gold > 0; view.charge = input.charge; view.danger = zombies.some(z => !z.dead && z.y > DANGER - 130);
+  view.aim = input.aim; view.goldFlash = G.goldFlash || 0; if (G.goldFlash > 0) G.goldFlash = Math.max(0, G.goldFlash - .03); view.t = performance.now() / 1000; view.gold = G.gold > 0; view.charge = input.charge; view.danger = zombies.some(z => !z.dead && z.y > DANGER - 130);
   view.armedOk = input.armed ? slots.map(s => !s.plant || (s.plant.type === input.armed && s.plant.lvl < MAXLVL)) : null;
   view.hot = hotSlot; view.shake = shake; view.ballReady = !ball.active; view.dragIdx = dragIdx; view.dragGhost = ghost;
   R.draw(view);
