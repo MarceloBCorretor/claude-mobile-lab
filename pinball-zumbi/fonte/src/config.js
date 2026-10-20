@@ -50,9 +50,6 @@ export const SCEN = [
     obstacles: [
       { k: 'tree', x: 122, y: 146, r: 24, zr: 44, kick: 190, e: .75 },
       { k: 'fountain', x: 279, y: 312, r: 44, zr: 66, kick: 90, e: .7 },
-      { k: 'tire', x: 192, y: 232, r: 25, zr: 40, kick: 220, e: .9 },
-      { k: 'pin', x: 205, y: 548, r: 12, zr: 18, kick: 300, e: .9 },
-      { k: 'pin', x: 352, y: 668, r: 12, zr: 18, kick: 300, e: .9 },
       { k: 'trash', v: 1, x: 95, y: 455, r: 30, zr: 36, kick: 300, e: .85 },
       { k: 'trash', v: 2, x: 445, y: 455, r: 30, zr: 36, kick: 300, e: .85 }
     ],

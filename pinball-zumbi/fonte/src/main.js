@@ -140,10 +140,14 @@ function explode(x, y, r, dmg) {
 const ZPAL = ['#6bbf46', '#4fa334', '#8ad65a', '#2f9bd6', '#5a3fa6', '#8b5a2b'];
 function spawnZombie(boss) {
   const n = G.wave, si = scenIdx, r = Math.random();
-  let type = 'normal'; if (boss) type = 'boss'; else if (n >= 3 && r < .22) type = 'runner'; else if (n >= 2 && r < .5) type = 'cone';
+  G.spawned = (G.spawned || 0) + 1;
+  let type = 'normal';
+  if (boss) type = 'boss';
+  else if (G.spawned % 4 === 0) type = 'runner';                    // de tempos em tempos vem um bem mais rápido
+  else if (n >= 3 && r < .18) type = 'runner'; else if (n >= 2 && r < .5) type = 'cone';
   const base = 3 + .9 * n + 1.3 * si, sp = Math.min(46, 19 + 2 * n + 3 * si);
   const spec = { normal: [1, 1, 22, 8, 60], cone: [2.2, 1, 22, 12, 90], runner: [.6, 1.9, 19, 10, 80], boss: [10, .55, 34, 60, 600] }[type];
-  const z = { type, x: SPAWN.x + (Math.random() - .5) * 24, y: SPAWN.y, dest: 110 + Math.random() * 320, ph: Math.random() * 6, flash: 0, slow: 0, stun: 0, dead: false, hitCd: 0, wander: Math.random() * 6 };
+  const z = { type, x: SPAWN.x + (Math.random() - .5) * 24, y: SPAWN.y, lane: 130 + Math.random() * 280, side: {}, vari: type === 'boss' ? 1 : .8 + Math.random() * .45, ph: Math.random() * 6, flash: 0, slow: 0, stun: 0, dead: false, hitCd: 0, wander: Math.random() * 6, px: SPAWN.x, py: SPAWN.y };
   z.hp = z.maxhp = base * spec[0]; z.sp = sp * spec[1]; z.r = spec[2]; z.coin = spec[3] + n + si * 2; z.pts = spec[4];
   zombies.push(z);
 }
@@ -337,33 +341,46 @@ function update(dt) {
   const blockers = obstacles.map(o => [o.x, o.y, o.zr || o.r + 8]);
   for (let i = zombies.length - 1; i >= 0; i--) {
     const z = zombies[i]; if (z.dead) { zombies.splice(i, 1); continue; }
-    z.ph += dt * (z.eating ? 15 : z.type === 'runner' ? 11 : 6.5); z.flash = Math.max(0, z.flash - dt); z.stun = Math.max(0, z.stun - dt);
+    z.ph += dt * (z.eating ? 15 : z.type === 'runner' ? 11 : 6.5 * z.vari); z.flash = Math.max(0, z.flash - dt); z.stun = Math.max(0, z.stun - dt);
     // o zumbi vai atrás da planta mais próxima; ao chegar, para e a come (a planta não resiste)
     if (!z.target || !z.target.plant) { z.target = null; let bd = SEEK_RANGE; for (const sl of slots) if (sl.plant) { const d = Math.hypot(sl.x - z.x, sl.y - z.y); if (d < bd) { bd = d; z.target = sl; } } }
     z.eating = false;
     if (z.stun <= 0) {
-      const k = z.slow > 0 ? .5 : 1;
-      if (z.target && z.y > 115) {
-        const dx = z.target.x - z.x, dy = z.target.y - 8 - z.y, d = Math.hypot(dx, dy) || 1;
-        if (d > 36) { z.x += dx / d * z.sp * 1.1 * k * dt; z.y += dy / d * z.sp * 1.1 * k * dt; }
-        else {
-          z.eating = true; const tp = z.target.plant; tp.hp -= (BITE[z.type] || 16) * k * dt; tp.hit = Math.max(tp.hit, .5); z.biteT = (z.biteT || 0) - dt;
-          if (z.biteT <= 0) { z.biteT = .5; snd(170, .05, 'square', .04); cubes(z.target.x, z.target.y - 14, 2, ['#6bbf46', '#2f8a2b'], 70, 4); }
-          if (tp.hp <= 0) plantDies(z.target);
-        }
-      } else { z.y += z.sp * k * dt; z.x += Math.sin(z.ph * .25 + z.wander) * 14 * dt; if (z.y < 360) z.x += Math.sign(z.dest - z.x) * Math.min(Math.abs(z.dest - z.x), 40 * dt); }
+      const k = (z.slow > 0 ? .5 : 1) * z.vari;
+      let gx, gy, near = false;
+      if (z.target && z.y > 115) { gx = z.target.x; gy = z.target.y - 8; near = Math.hypot(gx - z.x, gy - z.y) <= 36; }
+      else { gx = z.lane; gy = DANGER + 60; }
+      if (near) {
+        z.eating = true; const tp = z.target.plant; tp.hp -= (BITE[z.type] || 16) * (z.slow > 0 ? .5 : 1) * dt; tp.hit = Math.max(tp.hit, .5); z.biteT = (z.biteT || 0) - dt;
+        if (z.biteT <= 0) { z.biteT = .5; snd(170, .05, 'square', .04); cubes(z.target.x, z.target.y - 14, 2, ['#6bbf46', '#2f8a2b'], 70, 4); }
+        if (tp.hp <= 0) plantDies(z.target);
+      } else {
+        // direção desejada + desvio dos obstáculos (contorna pelo lado mais livre e mantém o lado escolhido)
+        let dx = gx - z.x, dy = gy - z.y, dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+        let sx = 0, sy = 0;
+        blockers.forEach(([bx, by, br], bi) => {
+          const ox = z.x - bx, oy = z.y - by, od = Math.hypot(ox, oy) || 1, m = br + z.r * .55, look = m + 70 + z.r;
+          if (od < look) {
+            const nx = ox / od, ny = oy / od, w = Math.min(1, (look - od) / 70 + .25);
+            if (z.side[bi] === undefined || od > look - 4) z.side[bi] = (-ny * dx + nx * dy) >= 0 ? 1 : -1;   // gira para o lado do destino
+            sx += (-ny * z.side[bi] * 1.6 + nx * .6) * w; sy += (nx * z.side[bi] * 1.6 + ny * .6) * w;
+          } else if (od > look + 20) delete z.side[bi];
+        });
+        let ux = dx + sx, uy = dy + sy;
+        if (z.unstick > 0) { z.unstick -= dt; ux = z.unDir * 1; uy = .55; }                 // destravar: anda de lado e para baixo
+        const ul = Math.hypot(ux, uy) || 1, sp = z.sp * (z.target ? 1.1 : 1) * k;
+        z.x += ux / ul * sp * dt; z.y += Math.max(uy / ul, z.unstick > 0 ? .2 : -.4) * sp * dt;
+        // detecta travamento: quase sem sair do lugar por mais de 1 s
+        z.stuckT = (z.stuckT || 0) + dt;
+        if (z.stuckT > 1) { if (Math.hypot(z.x - z.px, z.y - z.py) < 10 && z.y > 140) { z.unstick = 1.4; z.unDir = Math.random() < .5 ? -1 : 1; } z.px = z.x; z.py = z.y; z.stuckT = 0; }
+      }
     }
     z.slow = Math.max(0, z.slow - dt);
-    // obstáculos são sólidos para os zumbis: eles contornam a fonte, a árvore, o pneu, as lixeiras e os pinos
+    // obstáculos são sólidos para os zumbis (nunca ficam por cima)
     for (const [bx, by, br] of blockers) {
       let dx = z.x - bx, dy = z.y - by, d = Math.hypot(dx, dy); if (d < .01) { dx = 1; dy = 0; d = 1; }
       const m = br + z.r * .55;
-      if (d < m) {
-        const nx = dx / d, ny = dy / d; z.x = bx + nx * m; z.y = by + ny * m;                       // nunca fica por cima
-        const wx = z.target ? z.target.x - z.x : 0, wy = z.target ? z.target.y - z.y : 1;           // lado mais perto do destino
-        const sgn = Math.sign(-ny * wx + nx * wy) || (nx >= 0 ? 1 : -1);
-        z.x += -ny * sgn * 70 * dt; z.y += nx * sgn * 70 * dt;                                        // desliza ao redor
-      }
+      if (d < m) { z.x = bx + dx / d * m; z.y = by + dy / d * m; }
     }
     z.x = Math.min(WALL.R - z.r - 4, Math.max(WALL.L + z.r + 4, z.x));
     if (z.y >= DANGER) { leak(z); zombies.splice(i, 1); if (state !== 'play') return; }
@@ -520,4 +537,4 @@ toMenu();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('service-worker.js').catch(() => {});
 
 // gancho de teste (usado nos testes automatizados)
-window.PZ = { rollovers, obstacles, balls, addScore, leak, lostBall, end: endGame, step: dt => update(dt), start: startGame, launch, buy, slots, zombies, ball, flippers, input, view, get R() { return R; }, get G() { return G; }, get state() { return state; }, frame: () => { draw(); hud(); } };
+window.PZ = { spawnZombie, rollovers, obstacles, balls, addScore, leak, lostBall, end: endGame, step: dt => update(dt), start: startGame, launch, buy, slots, zombies, ball, flippers, input, view, get R() { return R; }, get G() { return G; }, get state() { return state; }, frame: () => { draw(); hud(); } };
